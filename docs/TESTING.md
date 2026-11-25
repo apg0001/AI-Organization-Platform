@@ -11,7 +11,7 @@ cd ../..
 npm run typecheck && npm test && npm run build   # 웹
 ```
 
-CI(`.github/workflows/ci.yml`)가 같은 검사를 돌리고 `CI Gate` 하나로 집계한다.
+CI(`.github/workflows/ci.yml`)가 같은 검사와 브라우저 E2E를 돌리고 `CI Gate` 하나로 집계한다.
 
 ## 백엔드 테스트 구성(`apps/server/tests`)
 
@@ -43,8 +43,23 @@ AI_ORG_AUTH=off AI_ORG_HOME=$(mktemp -d) apps/server/.venv/bin/uvicorn ai_org.ma
 
 ## 웹
 
-- `npm test`(Vitest, node 환경): 순수 로직 — 조직 → 사무실 상태 어댑터, 명령 인자 해석.
-- UI 검증은 헤드리스 Chrome 스크린샷으로 각 화면을 확인했다(2026-11-25). 컴포넌트·E2E 테스트(Playwright)는 Planned.
+- `npm test`(Vitest, node 환경): 순수 로직 — 조직 → 사무실 상태 어댑터, 명령 인자 해석, 스프라이트.
+
+## 브라우저 E2E(Playwright)
+
+```bash
+npm run e2e        # 루트에서. apps/server/.venv가 있어야 한다
+```
+
+- `apps/web/playwright.config.ts`가 임시 데이터 폴더와 **테스트용 가짜 런타임**(`AI_ORG_RUNTIME=fake`, `runtime/fake.py`)으로
+  백엔드(127.0.0.1:8100)와 웹(127.0.0.1:3100)을 띄운다. Claude 사용량을 쓰지 않는다. 브라우저는 시스템 Chrome(`channel: "chrome"`).
+- 가짜 런타임은 실제 런타임과 같은 계약을 따르며 프롬프트 표식으로 동작한다: 기본(마크다운 스트리밍), `[승인]`(파일 쓰기 승인 요청),
+  `[위임:이름]`(delegate_task), 설계 담당자(명세에 'E2E팀'·'E2E 분석가' 추가 + 권한 확대 제안).
+- `e2e/flows.spec.ts`(순서대로 이어지는 사용자 여정 6단계): 첫 계정 생성(비밀번호 확인 오류 포함) → 템플릿 미리보기·설계·검토·조직 생성 →
+  설계 담당자 대화로 명세 갱신·권한 제안 수락·적용·변경 이력 → 커맨드 센터 스트리밍·코드 블록·`/agents`·`@` 자동완성·승인 배너·위임 표시와
+  작업 트리 → 프로젝트 탐색 경로·등록·기능 관리 연결 점검 버튼·사무실 캔버스 → 로그아웃·틀린 비밀번호·재로그인. 마지막에 브라우저 콘솔 오류가 없는지 확인한다.
+- 실패 시 `apps/web/test-results/`에 스크린샷·trace가 남는다(CI는 아티팩트로 올림).
+- 결과(2026-11-25): Raspberry Pi(Chrome 156)에서 6개 통과(약 1분).
 
 ## 규칙
 

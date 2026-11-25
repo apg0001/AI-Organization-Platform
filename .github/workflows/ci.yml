@@ -47,12 +47,35 @@ jobs:
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=high
 
+  e2e:
+    name: E2E (Playwright · 가짜 런타임)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python -m venv apps/server/.venv && apps/server/.venv/bin/pip install -e 'apps/server[dev]'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: google-chrome --version
+      - run: npm run e2e
+      - if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-results
+          path: apps/web/test-results
+          retention-days: 7
+
   ci-gate:
     name: CI Gate
     if: always()
-    needs: [python, node]
+    needs: [python, node, e2e]
     runs-on: ubuntu-24.04
     steps:
       - name: 모든 검사 통과 확인
         run: |
-          [ "${{ needs.python.result }}" = "success" ] && [ "${{ needs.node.result }}" = "success" ]
+          [ "${{ needs.python.result }}" = "success" ] && [ "${{ needs.node.result }}" = "success" ] && [ "${{ needs.e2e.result }}" = "success" ]

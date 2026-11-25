@@ -29,6 +29,8 @@ class Settings:
             os.environ.get("AI_ORG_CLAUDE_HOME", Path.home() / ".claude")
         ).expanduser()
     )
+    # "fake"면 테스트용 가짜 런타임(E2E 전용, Claude를 실행하지 않음).
+    runtime_override: str = field(default_factory=lambda: os.environ.get("AI_ORG_RUNTIME", ""))
     claude_bin: str = field(default_factory=lambda: os.environ.get("AI_ORG_CLAUDE_BIN", "claude"))
     # 동시에 실행하는 Claude Code 프로세스 수(라즈베리 파이 기준 보수적).
     # 로그인 보호(기본 켬). off면 루프백·Host·Origin 검사만으로 보호한다.

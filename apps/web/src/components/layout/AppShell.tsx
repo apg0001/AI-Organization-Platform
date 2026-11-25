@@ -191,7 +191,9 @@ function SystemStatus() {
         {info.isLoading
           ? "Claude Code 확인 중…"
           : claude?.available
-            ? `Claude Code ${claude.version ?? ""}`
+            ? claude.version === "fake"
+              ? claude.name
+              : `Claude Code ${claude.version ?? ""}`
             : "Claude Code를 찾지 못함"}
       </span>
       <span className="flex items-center gap-1.5">

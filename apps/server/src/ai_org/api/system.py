@@ -29,6 +29,14 @@ router = APIRouter(prefix="/api/v1", tags=["system"])
 ACTIVE_STATUSES = ("thinking", "working", "waiting", "reviewing")
 
 
+def _runtime(settings: Any) -> Any:
+    if settings.runtime_override == "fake":
+        from ai_org.runtime.fake import FakeRuntime
+
+        return FakeRuntime()
+    return ClaudeCodeRuntime(settings.claude_bin)
+
+
 @router.get("/system/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -39,7 +47,7 @@ def system_info(settings: AppSettings) -> SystemInfo:
     return SystemInfo(
         version=__version__,
         data_dir=str(settings.home),
-        runtimes=[ClaudeCodeRuntime(settings.claude_bin).detect()],
+        runtimes=[_runtime(settings).detect()],
     )
 
 

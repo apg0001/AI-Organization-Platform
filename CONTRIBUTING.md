@@ -25,6 +25,7 @@
 ## 테스트 규칙
 
 - 백엔드: `ruff check`, `ruff format --check`, `mypy`(strict), `pytest`. 웹: `npm run typecheck`, `npm test`, `npm run build`.
+- 화면·흐름을 바꾸면 `npm run e2e`(Playwright)를 돌리고 필요하면 `apps/web/e2e`에 단계를 추가한다.
 - 새 기능·버그 수정에는 테스트를 추가한다. Claude 사용량을 쓰는 실제 실행 검증은 수동으로 하고 PR에 결과를 적는다.
 - 실행하지 않은 검사는 '미실행 검증'에 이유와 함께 적는다.
 

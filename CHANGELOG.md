@@ -5,6 +5,7 @@
 ## [Unreleased]
 
 ### 추가
+- 테스트: Playwright 브라우저 E2E(사용자 여정 6단계), 테스트용 가짜 런타임(`AI_ORG_RUNTIME=fake`), CI E2E 작업.
 - 로그인: 첫 실행 계정 생성, 로그인·로그아웃, 세션 쿠키(해시 저장), 로그인 시도 제한, 비밀번호 변경, `ai-org-admin reset-auth`, `AI_ORG_AUTH`.
 - 오케스트레이션: 위임 권한이 있는 에이전트의 `delegate_task`·`request_review` 도구(하위·협업 대상만, 순환·깊이 제한), 같은 대화에서 위임 실행·보고 취합, 작업 트리, 실행 패널 위임 트리 표시.
 - 기능 관리: 허용된 MCP 서버·Plugins를 에이전트 실행에 연결, `claude mcp list` 기반 MCP 연결 점검, MCP 도구 승인 묶음(`mcp`).
