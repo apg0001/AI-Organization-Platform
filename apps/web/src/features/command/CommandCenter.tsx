@@ -344,8 +344,9 @@ function ChatPane({
             </div>
           ) : null}
           {c.messages.map((m) => (
+            // 방금 생긴 메시지만 떠오르며 나타난다(대화를 열 때 불러온 기록은 그대로).
+            <div key={m.id} className={cn(Date.now() - Date.parse(m.created_at) < 8_000 && "message-in")}>
             <MessageView
-              key={m.id}
               message={m}
               agent={m.agent_id ? agentById.get(m.agent_id) : undefined}
               delegatedBy={m.data.delegated_by ? agentById.get(m.data.delegated_by) : undefined}
@@ -354,6 +355,7 @@ function ChatPane({
               onRegenerate={m.role === "assistant" && !busy ? () => regenerate(m.id) : undefined}
               onAction={() => !panelOpen && togglePanel()}
             />
+            </div>
           ))}
         </div>
       </div>

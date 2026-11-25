@@ -38,7 +38,10 @@ export function AgentStatus({ status, compact = false, className }: { status: St
       style={{ color: meta.color }}
       title={compact ? meta.label : undefined}
     >
-      <Icon className={cn("size-3.5", meta.pulse && "status-pulse")} aria-hidden />
+      {/* key로 상태가 바뀔 때만 다시 그려 전환 모션을 준다. */}
+      <span key={status} className="status-in inline-flex">
+        <Icon className={cn("size-3.5", meta.pulse && "status-pulse")} aria-hidden />
+      </span>
       {compact ? <span className="sr-only">{meta.label}</span> : meta.label}
     </span>
   );

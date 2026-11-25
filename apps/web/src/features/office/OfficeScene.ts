@@ -257,6 +257,66 @@ export class OfficeScene extends Phaser.Scene {
     this.drawZoneLabels();
   }
 
+  /**
+   * AI Organization 추가: 업무 전달 연출. 실제 위임 이벤트(task.delegated)가 오면 위임자 머리 위에서 봉투가 날아가
+   * 담당자에게 닿는다(검토 요청은 돋보기 표시). 둘 중 하나라도 화면에 없으면 그리지 않는다.
+   * 동작 줄이기 설정이면 움직이지 않고 담당자 머리 위에 잠깐 표시만 한다.
+   */
+  handoff(fromId: string, toId: string, kind: "delegated" | "review"): void {
+    const from = this.actors.get(fromId);
+    const to = this.actors.get(toId);
+    if (!this.sys.isActive() || !from || !to || from.leaving || to.leaving) {
+      return;
+    }
+    const above = (a: Actor) => ({ x: a.container.x, y: a.container.y + a.statusY - 14 });
+    const envelope = this.add.container(0, 0).setDepth(1e6);
+    const paper = this.add.graphics();
+    paper.fillStyle(kind === "review" ? 0xcfe9ff : 0xfff4d6, 1).fillRect(-8, -5, 16, 10);
+    paper.lineStyle(1.5, 0x2a2f3d, 1).strokeRect(-8, -5, 16, 10);
+    paper.lineBetween(-8, -5, 0, 1).lineBetween(0, 1, 8, -5);
+    envelope.add(paper);
+    if (kind === "review") {
+      envelope.add(this.add.text(9, -12, "?", { fontFamily: MAP_FONT, fontSize: "11px", color: "#55c8dc" }));
+    }
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      const p = above(to);
+      envelope.setPosition(p.x, p.y);
+      this.time.delayedCall(1600, () => envelope.destroy());
+      return;
+    }
+    const start = above(from);
+    envelope.setPosition(start.x, start.y).setScale(0.6).setAlpha(0);
+    // 진행도(0→1)를 트윈하고 매 프레임 두 캐릭터의 현재 위치 사이 포물선에 놓는다(걷는 중이어도 따라간다).
+    const progress = { t: 0 };
+    this.tweens.add({
+      targets: progress,
+      t: 1,
+      duration: 950,
+      ease: "Sine.easeInOut",
+      onUpdate: () => {
+        const a = above(from);
+        const b = above(to);
+        const t = progress.t;
+        const lift = Math.min(90, 30 + Math.hypot(b.x - a.x, b.y - a.y) * 0.25);
+        envelope.setPosition(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t - Math.sin(Math.PI * t) * lift);
+        envelope.setAlpha(Math.min(1, t * 6));
+        envelope.setScale(0.6 + 0.4 * Math.min(1, t * 4));
+        envelope.setAngle(Math.sin(Math.PI * t * 2) * 8);
+      },
+      onComplete: () => {
+        this.tweens.add({
+          targets: envelope,
+          scale: 1.25,
+          alpha: 0,
+          duration: 260,
+          ease: "Quad.easeOut",
+          onComplete: () => envelope.destroy(),
+        });
+      },
+    });
+  }
+
   /** 새 사실 상태를 받는다. 목적지만 바꾸고, 현재 위치에서 자연스럽게 다시 걷는다. */
   applyState(state: OfficeState): void {
     this.state = state;

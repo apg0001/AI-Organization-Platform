@@ -17,6 +17,13 @@ import { toOfficeState } from "./orgOffice";
  * 아이소메트릭 사무실. Agent Office 렌더러(OfficeScene)를 그대로 쓰고, 조직의 실제 에이전트 상태를 입력한다.
  * 캐릭터 위치는 연출이고 사실은 에이전트 상태(서버)다. 활동 구역은 실행 이벤트의 최근 도구 분류를 따른다.
  */
+interface Handoff {
+  id: string;
+  from: string;
+  to: string;
+  kind: "delegated" | "review";
+}
+
 export default function OfficePage() {
   const { orgId } = useCurrentOrg();
   const org = useOrganization(orgId);
@@ -26,6 +33,8 @@ export default function OfficePage() {
   const gameRef = useRef<Phaser.Game | null>(null);
   const [autoFocus, setAutoFocus] = useState(true);
   const [recent, setRecent] = useState<Record<string, string>>({});
+  const [handoffs, setHandoffs] = useState<Handoff[]>([]);
+  const names = useMemo(() => new Map((org.data?.agents ?? []).map((a) => [a.id, a.name])), [org.data]);
 
   useEffect(
     () =>
@@ -34,8 +43,17 @@ export default function OfficePage() {
           const detail = typeof event.detail === "string" ? event.detail : "";
           setRecent((r) => ({ ...r, [event.agent_id as string]: detail }));
         }
+        if (event.type === "task.delegated" && event.organization_id === orgId) {
+          const from = String(event.from_agent_id);
+          const to = String(event.to_agent_id);
+          const kind = event.kind === "review" ? "review" : "delegated";
+          sceneRef.current?.handoff(from, to, kind);
+          const id = `${String(event.task_id)}-${Date.now()}`;
+          setHandoffs((h) => [...h.slice(-3), { id, from, to, kind }]);
+          window.setTimeout(() => setHandoffs((h) => h.filter((x) => x.id !== id)), 6000);
+        }
       }),
-    [],
+    [orgId],
   );
 
   const state = useMemo(() => toOfficeState(org.data?.agents ?? [], recent), [org.data, recent]);
@@ -100,6 +118,17 @@ export default function OfficePage() {
       </header>
       <div className="relative min-h-0 flex-1">
         <div ref={hostRef} className="absolute inset-0" />
+        {/* 업무 전달 기록: 연출과 같은 사실을 글로도 알린다(스크린 리더·동작 줄이기 사용자). */}
+        <ol aria-live="polite" aria-label="최근 업무 전달" className="pointer-events-none absolute top-3 right-3 flex w-72 flex-col gap-1.5">
+          {handoffs.map((h) => (
+            <li key={h.id} className="feed-in rounded-md border border-border bg-surface-1/95 px-3 py-2 text-xs shadow-overlay">
+              <span className="font-medium">{names.get(h.from) ?? "에이전트"}</span>
+              <span className="text-faint"> → </span>
+              <span className="font-medium">{names.get(h.to) ?? "에이전트"}</span>
+              <span className="ml-1.5 text-muted">{h.kind === "review" ? "검토 요청" : "업무 전달"}</span>
+            </li>
+          ))}
+        </ol>
         <details className="absolute bottom-3 left-3 max-w-xs rounded-md border border-border bg-surface-1/95 px-3 py-2 text-xs">
           <summary className="cursor-pointer text-muted">구역 안내</summary>
           <ul className="mt-2 flex flex-col gap-1">
