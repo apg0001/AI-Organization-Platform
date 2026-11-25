@@ -33,6 +33,12 @@
 기능·API·DB·아키텍처·보안 정책·설치 방법·환경 변수가 바뀌면 같은 PR에서 관련 문서(README, docs/*, CHANGELOG)를 갱신한다.
 기술 선택을 바꿀 때는 기존 ADR을 고치지 않고 새 ADR을 추가한다(`docs/decisions/`).
 
+## 화면 검증(Chrome DevTools MCP)
+
+저장소의 `.mcp.json`에 `chrome-devtools`(chrome-devtools-mcp, 헤드리스·임시 프로필·사용 통계와 CrUX 전송 끔)가 있다.
+이 폴더에서 `claude`를 처음 실행할 때 프로젝트 MCP 서버를 승인하면 Claude Code가 브라우저로 `http://127.0.0.1:3000`을 열어
+화면·콘솔·네트워크를 확인할 수 있다. UI 변경 PR에는 확인한 화면을 적는다.
+
 ## 디자인 규칙
 
 `docs/DESIGN_SYSTEM.md` 토큰과 `docs/COMPONENT_GUIDELINES.md`의 공통 컴포넌트를 쓴다. 새 색·컴포넌트는 문서에 먼저 추가한다.

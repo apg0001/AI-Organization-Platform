@@ -71,7 +71,7 @@ def outside_paths(command: str, roots: list[Path]) -> list[str]:
     return out
 
 
-Group = Literal["shell", "file_write", "file_delete", "network", "delegate"]
+Group = Literal["shell", "file_write", "file_delete", "network", "delegate", "mcp"]
 
 
 @dataclass(frozen=True)
@@ -104,6 +104,8 @@ def group_of(tool: str, tool_input: dict[str, Any]) -> Group | None:
         return "network"
     if tool in ("Agent", "Task"):
         return "delegate"
+    if tool.startswith("mcp__"):
+        return "mcp"
     return None
 
 
@@ -144,8 +146,6 @@ def decide(perms: AgentPermissions, tool: str, tool_input: dict[str, Any], roots
         return Verdict("deny", group, "이 에이전트는 하위 에이전트에 위임할 수 없습니다.")
     if group is not None and group in perms.require_approval:
         return Verdict("ask", group)
-    if group is None and tool.startswith("mcp__"):
-        return Verdict("ask", None)
     # 읽기·검색 등 위험 묶음이 아닌 도구는 경로 검사만 통과하면 우리 정책은 막지 않는다.
     # (Claude Code가 자체 규칙으로 확인을 요청하면 그 판단은 그대로 유지된다.)
     return Verdict("allow", group)

@@ -24,8 +24,8 @@
 
 ## 3. 에이전트 권한
 
-- `AgentPermissions`: 셸·파일 쓰기·삭제·네트워크·위임 허용, 승인 필요 묶음, 권한 모드(default·plan·acceptEdits). `bypassPermissions`는 스키마에서 거부.
-- 기본값(보수적): 셸 금지, 삭제 금지, 위임 금지(CEO 제외), 셸·파일 쓰기·삭제는 승인 필요.
+- `AgentPermissions`: 셸·파일 쓰기·삭제·네트워크·위임 허용, 승인 필요 묶음(shell·file_write·file_delete·network·delegate·mcp), 권한 모드(default·plan·acceptEdits). `bypassPermissions`는 스키마에서 거부.
+- 기본값(보수적): 셸 금지, 삭제 금지, 위임 금지(CEO 제외), 셸·파일 쓰기·삭제·MCP 도구는 승인 필요.
 - 집행 순서: ① 금지 묶음은 `disallowed_tools`(Claude Code deny — 어떤 모드에서도 우선) ② 모든 도구 호출 PreToolUse 훅에서 정책 판정
   ③ Claude Code 자체 확인 요청은 `can_use_tool`. 우리 정책은 Claude Code 권한을 좁히기만 하며 우회하지 않는다.
 - `setting_sources=["project"]`: 사용자 전역 설정의 allow 규칙이 앱 승인을 건너뛰지 않게 한다.
@@ -40,7 +40,8 @@
 ## 5. 민감 정보
 
 - 이 앱은 Claude 자격증명·API 키를 읽거나 저장하지 않는다.
-- MCP 설정의 env·헤더·인자·URL 쿼리 값은 응답에 넣지 않는다. Git 원격 URL의 자격증명은 지운다.
+- MCP 설정의 env·헤더·인자·URL 쿼리 값은 응답에 넣지 않는다. 허용된 서버의 원본 설정(비밀 포함)은 실행 옵션으로만 Claude Code에
+  전달하고 DB·로그·화면에 남기지 않는다(테스트 `test_run_request_carries_allowed_mcp_and_plugins`). Git 원격 URL의 자격증명은 지운다.
 - 실행 기록에는 도구 이름과 짧은 대상만 저장한다(도구 출력 원문 저장 안 함). 대화 본문과 응답은 로컬 DB에 저장된다.
 - 데이터 폴더 `~/.ai-org`는 0700, 첨부 파일은 0600.
 

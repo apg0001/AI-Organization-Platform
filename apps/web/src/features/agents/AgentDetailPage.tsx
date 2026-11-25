@@ -43,6 +43,7 @@ export function AgentDetailPage() {
           permissions: next.permissions,
           allowed_skills: next.allowed_skills,
           allowed_mcp_servers: next.allowed_mcp_servers,
+          allowed_plugins: next.allowed_plugins,
         },
       }),
     onSuccess: () => {

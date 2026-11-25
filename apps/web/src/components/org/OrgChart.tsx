@@ -120,6 +120,7 @@ export function orgAsSpec(org: Organization): OrgSpec {
       recommended_mcp: [],
       allowed_skills: a.allowed_skills,
       allowed_mcp_servers: a.allowed_mcp_servers,
+      allowed_plugins: a.allowed_plugins,
       model: a.model,
     })),
     collaborations: org.collaborations.map((c) => ({

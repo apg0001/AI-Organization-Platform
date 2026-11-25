@@ -17,13 +17,14 @@ export const APPROVAL_LABELS: Record<ApprovalGroup, string> = {
   file_delete: "파일 삭제",
   network: "웹 검색·가져오기",
   delegate: "하위 에이전트 위임",
+  mcp: "MCP 도구 사용",
 };
 
 const REC_STATUS: Record<Recommendation["status"], { label: string; className: string }> = {
   available: { label: "사용 가능", className: "text-success" },
   approval_required: { label: "허용 필요", className: "text-warning" },
   install_required: { label: "설치·연결 필요", className: "text-muted" },
-  unsupported: { label: "아직 지원 안 됨", className: "text-faint" },
+  unsupported: { label: "런타임 미지원", className: "text-faint" },
 };
 
 function lines(value: string[]): string {
@@ -66,6 +67,7 @@ export function AgentEditor({
   const managers = agents.filter((a) => a.key !== agent.key);
   const skills = capabilities.filter((c) => c.kind === "skill");
   const mcps = capabilities.filter((c) => c.kind === "mcp");
+  const plugins = capabilities.filter((c) => c.kind === "plugin");
   const myRecs = recommendations.filter((r) => r.agent === agent.key);
 
   return (
@@ -230,7 +232,7 @@ export function AgentEditor({
         </Field>
       </Group>
 
-      <Group title="Skills·MCP">
+      <Group title="Skills·MCP·Plugins">
         {myRecs.length > 0 ? (
           <div className="flex flex-col gap-1.5">
             <p className="text-xs font-medium text-muted">추천(아직 적용 아님)</p>
@@ -260,7 +262,14 @@ export function AgentEditor({
           items={mcps}
           selected={agent.allowed_mcp_servers}
           onChange={(allowed_mcp_servers) => commit({ allowed_mcp_servers })}
-          note="MCP 서버를 에이전트 실행에 실제로 연결하는 기능은 Phase 4에서 구현합니다. 지금은 허용 목록만 저장됩니다."
+          note="허용한 서버만 이 에이전트의 실행에 연결됩니다. MCP 도구 호출은 '실행 전에 내 승인 받기'의 MCP 항목을 따릅니다."
+        />
+        <CapabilityChecklist
+          title="허용된 Plugins"
+          empty="설치된 플러그인이 없습니다. `claude plugin install`로 설치하세요."
+          items={plugins}
+          selected={agent.allowed_plugins}
+          onChange={(allowed_plugins) => commit({ allowed_plugins })}
         />
       </Group>
 

@@ -35,8 +35,10 @@ class AgentPermissions(BaseModel):
     allow_network: bool = True
     allow_file_write: bool = True
     allow_file_delete: bool = False
-    require_approval: list[Literal["shell", "file_write", "file_delete", "network", "delegate"]] = Field(
-        default_factory=lambda: ["shell", "file_write", "file_delete"]  # type: ignore[arg-type]
+    require_approval: list[Literal["shell", "file_write", "file_delete", "network", "delegate", "mcp"]] = (
+        Field(
+            default_factory=lambda: ["shell", "file_write", "file_delete", "mcp"]  # type: ignore[arg-type]
+        )
     )
     can_delegate: bool = False
 

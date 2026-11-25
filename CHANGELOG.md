@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 추가
+- 기능 관리: 허용된 MCP 서버·Plugins를 에이전트 실행에 연결, `claude mcp list` 기반 MCP 연결 점검, MCP 도구 승인 묶음(`mcp`).
+- 개발: 저장소 `.mcp.json`에 chrome-devtools MCP(헤드리스·임시 프로필·사용 통계 끔) — Claude Code로 화면을 검증할 때 사용.
+
 ### 변경
 - 보안: 셸 명령 안의 작업 폴더 밖 경로를 감지해 사용자 승인을 요구(승인 요청에 사유 표시).
 - 라이선스: Apache License 2.0 적용(LICENSE, NOTICE).

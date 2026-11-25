@@ -7,12 +7,16 @@ Claude Code 설정 파일을 읽어 Skills·MCP 서버·Plugins 목록을 만든
 - Skills: ~/.claude/skills/*/SKILL.md (user), <project>/.claude/skills/*/SKILL.md (project)
 - MCP: ~/.claude.json 의 mcpServers(user) 및 projects[<path>].mcpServers(local), <project>/.mcp.json(project)
 - Plugins: ~/.claude/plugins/installed_plugins.json
-연결 상태 점검(health check)은 Phase 4에서 `claude mcp list` 등 공식 경로로 수행한다.
+실행 연결: `resolve_mcp_servers`/`resolve_plugin_paths`가 에이전트에게 허용된 항목의 원본 설정을
+서버 안에서만 꺼낸다(비밀 값 포함 — API 응답·DB에 넣지 않고 실행 옵션으로만 전달).
+연결 상태 점검은 `claude mcp list`(`mcp_health`).
 """
 
 from __future__ import annotations
 
 import json
+import re
+import subprocess
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -187,3 +191,98 @@ def discover_all(claude_home: Path, project_paths: list[str]) -> list[Capability
     caps += discover_mcp(claude_json, project_paths)
     caps += discover_plugins(claude_home)
     return caps
+
+
+# ── 실행 연결(서버 내부 전용) ──────────────────────────────────────────────
+
+
+def _claude_json(claude_home: Path) -> Path:
+    return (
+        claude_home.parent / ".claude.json" if claude_home.name == ".claude" else claude_home / ".claude.json"
+    )
+
+
+def resolve_mcp_servers(
+    claude_home: Path, project_paths: list[str], allowed_ids: list[str]
+) -> dict[str, Any]:
+    """허용된 MCP 서버 ID(mcp:<scope>:<name>)의 원본 설정. 비밀이 들어 있으므로 실행 옵션으로만 쓴다."""
+    wanted = {
+        cid.split(":", 2)[2]: cid.split(":", 2)[1]
+        for cid in allowed_ids
+        if cid.startswith("mcp:") and cid.count(":") >= 2
+    }
+    if not wanted:
+        return {}
+    sources: list[tuple[str, dict[str, Any]]] = []
+    data = _read_json(_claude_json(claude_home))
+    if isinstance(data, dict):
+        sources.append(("user", data.get("mcpServers") or {}))
+        projects = data.get("projects") or {}
+        for path in project_paths:
+            entry = projects.get(path) if isinstance(projects, dict) else None
+            if isinstance(entry, dict):
+                sources.append(("local", entry.get("mcpServers") or {}))
+    for path in project_paths:
+        project_data = _read_json(Path(path) / ".mcp.json")
+        if isinstance(project_data, dict):
+            sources.append(("project", project_data.get("mcpServers") or {}))
+    resolved: dict[str, Any] = {}
+    for scope, servers in sources:
+        if not isinstance(servers, dict):
+            continue
+        for name, cfg in servers.items():
+            if wanted.get(name) == scope and name not in resolved and isinstance(cfg, dict):
+                resolved[name] = dict(cfg)
+    return resolved
+
+
+def resolve_plugin_paths(claude_home: Path, allowed_ids: list[str]) -> list[str]:
+    data = _read_json(claude_home / "plugins" / "installed_plugins.json")
+    if not isinstance(data, dict):
+        return []
+    plugins = data.get("plugins", data)
+    paths: list[str] = []
+    for cid in allowed_ids:
+        key = cid.removeprefix("plugin:")
+        value = plugins.get(key) if isinstance(plugins, dict) else None
+        installs = value if isinstance(value, list) else [value]
+        first = installs[0] if installs and isinstance(installs[0], dict) else {}
+        install_path = first.get("installPath")
+        if isinstance(install_path, str) and Path(install_path).is_dir():
+            paths.append(install_path)
+    return paths
+
+
+HEALTH_LINE = re.compile(r"^(?P<name>[^:]+): (?P<target>.*) - (?P<symbol>\S+) (?P<text>.+)$")
+HEALTH_STATES = (
+    ("Connected", "connected"),
+    ("Needs authentication", "needs_auth"),
+    ("Failed", "failed"),
+    ("Pending approval", "pending_approval"),
+    ("Rejected", "disabled"),
+    ("Disabled", "disabled"),
+    ("Blocked", "disabled"),
+)
+
+
+def parse_mcp_list(output: str) -> list[dict[str, str]]:
+    found = []
+    for line in output.splitlines():
+        m = HEALTH_LINE.match(line.strip())
+        if not m:
+            continue
+        text = m.group("text").strip()
+        state = next((s for key, s in HEALTH_STATES if text.startswith(key)), "unknown")
+        found.append({"name": m.group("name").strip(), "state": state, "message": text})
+    return found
+
+
+def mcp_health(claude_bin: str, cwd: Path, timeout: float = 120) -> list[dict[str, str]]:
+    """`claude mcp list`로 서버 연결 상태를 점검한다(서버를 실제로 띄워 보므로 시간이 걸린다)."""
+    try:
+        out = subprocess.run(
+            [claude_bin, "mcp", "list"], cwd=cwd, capture_output=True, text=True, timeout=timeout, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return [{"name": "*", "state": "error", "message": str(exc)[:200]}]
+    return parse_mcp_list(out.stdout)
