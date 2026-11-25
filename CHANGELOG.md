@@ -4,12 +4,17 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-25
+
+데스크톱 설치 파일은 여전히 서명하지 않았다.
+
 ### 추가
 - 커맨드 센터: 응답 중에도 메시지를 보낼 수 있다. 응답 중인 에이전트에게 보낸 메시지는 대기열에 들어갔다가 지금 응답이 끝나면 같은 세션으로 이어서 전달된다(취소 가능, 중지하면 함께 취소) (#45).
 - 커맨드 센터: 여러 에이전트가 동시에 응답할 때 입력창 위 '응답 중' 도크(에이전트별 현재 활동 한 줄, 누르면 이동)와 화면 밖에서 끝난 응답의 '새 응답' 알림 (#46).
 - 커맨드 센터: 입력창 높이 자동 조절(최대 5줄, 넘으면 스크롤) (#44).
 
 ### 변경
+- 사무실: 화면을 다시 그릴 때 이전 캔버스를 즉시 제거(캔버스가 잠시 둘이 되던 문제) (#51).
 - 사무실: 화면을 다시 열 때 캐릭터가 출입구에서 걸어 들어오지 않고 자기 자리에서 바로 시작한다. 화면이 열려 있는 동안 새로 생긴 캐릭터만 출근한다 (#43).
 
 ## [0.1.0] - 2026-11-25
@@ -44,5 +49,6 @@
 - 보안: 셸 명령 안의 작업 폴더 밖 경로를 감지해 사용자 승인을 요구(승인 요청에 사유 표시).
 - 라이선스: Apache License 2.0 적용(LICENSE, NOTICE).
 
-[Unreleased]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.1.0...develop
+[Unreleased]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.2.0...develop
+[0.2.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/apg0001/AI-Organization-Platform/releases/tag/v0.1.0
