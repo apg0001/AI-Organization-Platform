@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import mimetypes
 import os
 import signal
 import sys
@@ -114,16 +115,25 @@ def create_app(
     return app
 
 
+# PWA 매니페스트(#73). 표준 mimetypes에 없어 등록한다.
+mimetypes.add_type("application/manifest+json", ".webmanifest")
+
+
 class SpaFiles(StaticFiles):
     """정적 파일 + SPA 대체: 없는 경로(/usage 등 화면 주소)는 index.html. /api 아래는 대체하지 않는다."""
 
     async def get_response(self, path: str, scope: Scope) -> Response:
         try:
-            return await super().get_response(path, scope)
+            response = await super().get_response(path, scope)
         except StarletteHTTPException as exc:
             if exc.status_code != 404 or path == "api" or path.startswith("api/"):
                 raise
-            return await super().get_response("index.html", scope)
+            response = await super().get_response("index.html", scope)
+            path = "index.html"
+        if path in ("sw.js", "index.html", "", "."):
+            # 서비스 워커와 화면 HTML은 늘 새로 확인한다(새 릴리스가 바로 반영되게).
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 def _purge_draft_attachments(factory, settings: Settings) -> None:  # type: ignore[no-untyped-def]

@@ -133,6 +133,17 @@ export interface ProjectCandidate {
   registered: boolean;
 }
 
+/** 서버 컴퓨터의 폴더 탐색 결과(홈 폴더 안, 하위 폴더만, #65). */
+export interface FolderListing {
+  path: string;
+  home: string;
+  parent: string | null;
+  is_git: boolean;
+  kind: string;
+  entries: { name: string; path: string; is_git: boolean; kind: string }[];
+  truncated: boolean;
+}
+
 export interface Task {
   id: string;
   organization_id: string;

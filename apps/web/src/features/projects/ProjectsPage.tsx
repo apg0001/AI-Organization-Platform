@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FolderGit2, FolderPlus, GitBranch, RefreshCw, Trash2 } from "lucide-react";
+import { FolderGit2, FolderOpen, FolderPlus, GitBranch, RefreshCw, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 
@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogFooter } from "@/components/ui/overlay";
 import { type GitInfo, type Project, type ProjectCandidate, api } from "@/lib/api";
 import { useOrganizations, useProjectRoots, useProjects } from "@/lib/queries";
 import { cn } from "@/lib/utils";
+
+import { FolderPicker } from "./FolderPicker";
 
 /** 로컬 프로젝트 관리. 브라우저는 경로 문자열만 보내고, 탐색·검증은 로컬 백엔드가 등록된 경로 안에서만 한다. */
 export function ProjectsPage() {
@@ -47,6 +49,22 @@ export function ProjectsPage() {
       api(`/projects/${id}`, { method: "PATCH", body: { organization_id } }),
     onSuccess: refresh,
   });
+  // 폴더 탐색 창에서 고른 폴더를 탐색 경로(깊이 0, 이미 포함되면 생략)와 프로젝트로 한 번에 등록한다(#65).
+  const [pickOpen, setPickOpen] = useState(false);
+  const [pickOrg, setPickOrg] = useState("");
+  const addFromFolder = useMutation({
+    mutationFn: async (path: string) => {
+      const covered = (roots.data ?? []).some((r) => path === r.path || path.startsWith(`${r.path.replace(/\/$/, "")}/`));
+      if (!covered) await api("/project-roots", { method: "POST", body: { path, max_depth: 0 } });
+      return api<Project>("/projects", { method: "POST", body: { path, organization_id: pickOrg || null } });
+    },
+    onSuccess: (p) => {
+      refresh();
+      setPickOpen(false);
+      toast.success(`'${p.name}' 프로젝트를 등록했습니다.`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const candidates = (scan.data ?? []).filter((c) => !c.registered);
   const orgName = new Map((orgs.data ?? []).map((o) => [o.id, o.name]));
 
@@ -56,9 +74,14 @@ export function ProjectsPage() {
         title="프로젝트"
         description="에이전트가 작업할 로컬 폴더입니다. 탐색 경로로 등록한 폴더 안의 프로젝트만 등록할 수 있습니다."
         actions={
-          <Button onClick={() => setRootOpen(true)}>
-            <FolderPlus /> 탐색 경로 추가
-          </Button>
+          <>
+            <Button variant="primary" onClick={() => setPickOpen(true)}>
+              <FolderOpen /> 폴더에서 추가
+            </Button>
+            <Button onClick={() => setRootOpen(true)}>
+              <FolderPlus /> 탐색 경로 추가
+            </Button>
+          </>
         }
       />
       <div className="grid gap-8 px-6 pb-10 xl:grid-cols-[1.5fr_1fr]">
@@ -159,6 +182,29 @@ export function ProjectsPage() {
         </div>
       </div>
       <AddRootDialog open={rootOpen} onOpenChange={setRootOpen} onDone={refresh} />
+      <FolderPicker
+        open={pickOpen}
+        onOpenChange={setPickOpen}
+        title="폴더에서 프로젝트 추가"
+        description="에이전트가 일할 컴퓨터의 폴더입니다(홈 폴더 안). 폴더로 들어간 뒤 '이 폴더 추가'를 누르세요."
+        confirmLabel="이 폴더 추가"
+        pending={addFromFolder.isPending}
+        onPick={(path) => addFromFolder.mutate(path)}
+        extra={
+          <Field label="연결할 조직" hint="이 조직의 새 대화가 이 프로젝트에서 시작합니다.">
+            {(id) => (
+              <Select id={id} value={pickOrg} onChange={(e) => setPickOrg(e.target.value)}>
+                <option value="">연결 안 함</option>
+                {(orgs.data ?? []).map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        }
+      />
     </div>
   );
 }
@@ -199,6 +245,7 @@ function GitPanel({ projectId }: { projectId: string }) {
 
 function AddRootDialog({ open, onOpenChange, onDone }: { open: boolean; onOpenChange: (v: boolean) => void; onDone: () => void }) {
   const [path, setPath] = useState("");
+  const [browsing, setBrowsing] = useState(false);
   const [depth, setDepth] = useState(2);
   const add = useMutation({
     mutationFn: () => api("/project-roots", { method: "POST", body: { path, max_depth: depth } }),
@@ -218,15 +265,20 @@ function AddRootDialog({ open, onOpenChange, onDone }: { open: boolean; onOpenCh
         <form onSubmit={submit} className="flex flex-col gap-4">
           <Field label="절대 경로" error={add.error?.message} hint="예: /home/사용자/code">
             {(id) => (
-              <Input
-                id={id}
-                value={path}
-                onChange={(e) => setPath(e.target.value)}
-                placeholder="/home/you/code…"
-                spellCheck={false}
-                className="font-mono"
-                aria-invalid={Boolean(add.error)}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id={id}
+                  value={path}
+                  onChange={(e) => setPath(e.target.value)}
+                  placeholder="/home/you/code…"
+                  spellCheck={false}
+                  className="font-mono"
+                  aria-invalid={Boolean(add.error)}
+                />
+                <Button onClick={() => setBrowsing(true)}>
+                  <FolderOpen /> 찾아보기
+                </Button>
+              </div>
             )}
           </Field>
           <Field label="탐색 깊이" hint="0이면 이 폴더 자체만, 2면 두 단계 아래까지 찾습니다.">
@@ -249,6 +301,16 @@ function AddRootDialog({ open, onOpenChange, onDone }: { open: boolean; onOpenCh
             </Button>
           </DialogFooter>
         </form>
+        <FolderPicker
+          open={browsing}
+          onOpenChange={setBrowsing}
+          title="탐색 경로 고르기"
+          confirmLabel="이 폴더 사용"
+          onPick={(picked) => {
+            setPath(picked);
+            setBrowsing(false);
+          }}
+        />
       </DialogContent>
     </Dialog>
   );

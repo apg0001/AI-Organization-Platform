@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from ai_org.config import Settings
@@ -121,3 +122,35 @@ def test_fake_runtime_is_opt_in(settings: Settings) -> None:
     ) as c:
         claude = c.get("/api/v1/system/info").json()["runtimes"][0]
         assert claude["version"] == "fake" and "가짜" in claude["name"]
+
+
+def test_folder_browse_stays_in_home(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    (home / "code" / "app" / ".git").mkdir(parents=True)
+    (home / "code" / "app" / "package.json").write_text("{}")
+    (home / ".secret").mkdir()
+    (home / "notes.txt").write_text("파일은 보이지 않아야 한다")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (home / "escape").symlink_to(outside)
+    monkeypatch.setenv("HOME", str(home))
+
+    top = client.get("/api/v1/fs/browse").json()
+    assert top["path"] == str(home.resolve()) and top["parent"] is None
+    assert [e["name"] for e in top["entries"]] == ["code"]  # 숨김·파일·홈 밖 링크 제외
+    hidden = client.get("/api/v1/fs/browse", params={"hidden": True}).json()
+    assert [e["name"] for e in hidden["entries"]] == [".secret", "code"]
+
+    code = client.get("/api/v1/fs/browse", params={"path": str(home / "code")}).json()
+    assert code["parent"] == str(home.resolve())
+    assert code["entries"][0] == {
+        "name": "app",
+        "path": str((home / "code" / "app").resolve()),
+        "is_git": True,
+        "kind": "node",
+    }
+    assert client.get("/api/v1/fs/browse", params={"path": str(outside)}).status_code == 403
+    assert client.get("/api/v1/fs/browse", params={"path": str(home / "escape")}).status_code == 403
+    assert client.get("/api/v1/fs/browse", params={"path": "relative"}).status_code == 422

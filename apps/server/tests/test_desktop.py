@@ -105,11 +105,19 @@ def test_serves_web_build_with_spa_fallback(settings: Settings, tmp_path: Path) 
     (dist / "assets").mkdir(parents=True)
     (dist / "index.html").write_text("<html>app</html>")
     (dist / "assets" / "app.js").write_text("console.log(1)")
+    (dist / "sw.js").write_text("self.addEventListener('fetch', () => {})")
+    (dist / "manifest.webmanifest").write_text('{"name": "AI Organization"}')
     s = dataclasses.replace(settings, web_dist=dist)
     with TestClient(create_app(s), base_url="http://127.0.0.1:8000") as c:
         assert c.get("/").text == "<html>app</html>"
         assert c.get("/assets/app.js").text == "console.log(1)"
         assert c.get("/usage").text == "<html>app</html>"  # 화면 주소는 index.html
+        # PWA(#73): 매니페스트 형식, 서비스 워커·화면 HTML은 늘 새로 확인, 해시 파일은 캐시 허용.
+        assert c.get("/manifest.webmanifest").headers["content-type"].startswith("application/manifest+json")
+        assert c.get("/sw.js").headers["cache-control"] == "no-cache"
+        assert c.get("/").headers["cache-control"] == "no-cache"
+        assert c.get("/usage").headers["cache-control"] == "no-cache"
+        assert "cache-control" not in c.get("/assets/app.js").headers
         assert c.get("/api/v1/system/health").json() == {"status": "ok"}
         assert c.get("/api/v1/nope").status_code == 404  # API는 대체하지 않는다
         assert c.get("/", headers={"Host": "evil.example"}).status_code == 403  # Host 검사 그대로

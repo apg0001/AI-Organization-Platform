@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-25
+
+데스크톱 설치 파일은 여전히 서명하지 않았다.
+
+### 추가
+- PWA: 브라우저에서 앱으로 설치(매니페스트·아이콘·서비스 워커). 정적 파일만 캐시하고 `/api`는 캐시하지 않는다. HTTPS 또는 localhost(SSH 터널)에서 동작 (#73).
+- 커맨드 센터: 프로젝트 없이 시작한 대화(빈 작업 폴더에서 실행)에 경고와 조직 프로젝트 바로 연결 버튼 (#71).
+- 커맨드 센터: 입력창에서 ↑/↓로 이 대화에서 보낸 메시지·명령을 다시 불러온다(쓰던 초안 보존) (#69).
+- 프로젝트: '폴더에서 추가' 탐색 창. 서버 컴퓨터의 홈 폴더를 둘러보며 골라 탐색 경로와 프로젝트를 한 번에 등록하고 조직에 연결한다. 탐색 경로 추가 창에도 '찾아보기' (#65).
+
+### 수정
+- 커맨드 센터: `/home/...`처럼 경로로 시작하는 메시지를 명령어로 잘못 처리하던 문제. 첫 단어가 `/이름` 꼴일 때만 명령으로 본다 (#67).
+- 새 대화가 조직에 연결된 유일한 프로젝트를 기본으로 쓴다(프로젝트 없이 빈 폴더에서 실행되던 문제) (#63).
+
 ## [0.2.0] - 2026-11-25
 
 데스크톱 설치 파일은 여전히 서명하지 않았다.
@@ -50,6 +64,7 @@
 - 보안: 셸 명령 안의 작업 폴더 밖 경로를 감지해 사용자 승인을 요구(승인 요청에 사유 표시).
 - 라이선스: Apache License 2.0 적용(LICENSE, NOTICE).
 
-[Unreleased]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.2.0...develop
+[Unreleased]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.3.0...develop
+[0.3.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/apg0001/AI-Organization-Platform/releases/tag/v0.1.0

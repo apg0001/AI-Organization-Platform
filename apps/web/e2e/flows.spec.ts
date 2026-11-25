@@ -121,6 +121,22 @@ test("커맨드 센터: 스트리밍 응답·명령·멘션 자동완성·승인
   await expect(chatLog.getByText("가짜 런타임 응답입니다:")).toBeVisible();
   await expect(page.locator("pre code")).toContainText("print('hello e2e')");
 
+  // 경로로 시작하는 메시지는 명령이 아니라 일반 메시지로 보낸다(#67).
+  await input.fill("/tmp/e2e-path 이 폴더 봐 줘");
+  await input.press("Enter");
+  await expect(chatLog.getByText("가짜 런타임 응답입니다:").last()).toContainText("/tmp/e2e-path 이 폴더 봐 줘");
+
+  // ↑/↓로 보낸 글을 다시 불러오고, 끝을 지나면 쓰던 초안으로 돌아온다(#69).
+  await input.fill("쓰던 초안");
+  await input.press("ArrowUp");
+  await expect(input).toHaveValue("/tmp/e2e-path 이 폴더 봐 줘");
+  await input.press("ArrowUp");
+  await expect(input).toHaveValue("안녕하세요 팀");
+  await input.press("ArrowDown");
+  await input.press("ArrowDown");
+  await expect(input).toHaveValue("쓰던 초안");
+  await input.fill("");
+
   await input.fill("/ag");
   await expect(page.getByRole("listbox", { name: "명령어" }).getByRole("option", { name: /\/agents/ })).toBeVisible();
   await input.press("Enter");
@@ -177,6 +193,26 @@ test("프로젝트 등록과 기능 관리·사무실 화면", async ({ page }) 
   await page.getByRole("dialog").getByRole("button", { name: "추가" }).click();
   await page.getByRole("button", { name: "등록" }).first().click();
   await expect(page.getByRole("button", { name: "sample-app 등록 해제(파일은 지우지 않음)" })).toBeVisible();
+
+  // 폴더 탐색 창에서 서버 홈 폴더를 둘러보고 바로 추가한다(탐색 경로 + 프로젝트 한 번에, #65).
+  await page.getByRole("button", { name: "폴더에서 추가" }).click();
+  const picker = page.getByRole("dialog", { name: "폴더에서 프로젝트 추가" });
+  await picker.getByRole("list", { name: "하위 폴더" }).getByRole("button", { name: /code/ }).click();
+  await picker.getByRole("list", { name: "하위 폴더" }).getByRole("button", { name: /picked-app/ }).click();
+  await expect(picker.getByRole("navigation", { name: "현재 위치" })).toContainText("picked-app");
+  await page.screenshot({ path: test.info().outputPath("folder-picker.png") });
+  await picker.getByRole("button", { name: "이 폴더 추가" }).click();
+  await expect(page.getByRole("button", { name: "picked-app 등록 해제(파일은 지우지 않음)" })).toBeVisible();
+
+  // 프로젝트를 조직에 연결하면, 프로젝트 없이 시작한 기존 대화에 경고와 바로 연결 버튼이 뜬다(#71).
+  await page.getByLabel("picked-app 연결 조직").selectOption({ index: 1 });
+  await page.getByRole("link", { name: "커맨드 센터", exact: true }).click();
+  await page.getByRole("link", { name: /안녕하세요 팀/ }).first().click();
+  const notice = page.getByRole("status").filter({ hasText: "빈 작업 폴더" });
+  await expect(notice).toBeVisible();
+  await notice.getByRole("button", { name: "picked-app 연결" }).click();
+  await expect(notice).toHaveCount(0);
+  await page.getByRole("link", { name: "프로젝트", exact: true }).click();
 
   await page.getByRole("link", { name: "기능 관리", exact: true }).click();
   await expect(page.getByRole("tab", { name: /Skills/ })).toBeVisible();

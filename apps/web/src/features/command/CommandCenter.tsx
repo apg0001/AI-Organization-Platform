@@ -18,6 +18,7 @@ import {
   User,
   Users,
   X,
+  FolderX,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -52,7 +53,7 @@ import {
 import { cn, timeAgo } from "@/lib/utils";
 import { TaskStatus } from "@/features/dashboard/DashboardPage";
 
-import { Composer, type SendPayload } from "./Composer";
+import { Composer, type SendPayload, sentHistory } from "./Composer";
 import { LiveDock, type Unseen } from "./LiveDock";
 import { dockItems, showDock } from "./dockState";
 import { ACTIVITY_LABELS, MessageView } from "./Messages";
@@ -425,6 +426,7 @@ function ChatPane({
         </div>
       </div>
       <PendingApprovalBanner conversationId={c.id} />
+      <NoProjectNotice conversationId={c.id} organizationId={c.organization_id} projectId={c.project_id} onLinked={refresh} />
       <div className="mx-auto w-full max-w-3xl">
         <LiveDock
           items={live}
@@ -439,6 +441,7 @@ function ChatPane({
           agents={agents}
           commands={commands.data ?? []}
           busy={busy}
+          history={sentHistory(c.messages)}
           onSend={send}
           onCommand={runCommand}
           onStop={stop}
@@ -722,6 +725,49 @@ function PendingApprovalBanner({ conversationId }: { conversationId: string }) {
           </Button>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * 프로젝트 없이 시작한 대화는 에이전트가 빈 전용 폴더에서 일한다(코드를 볼 수 없음).
+ * 이 조직에 연결된 프로젝트가 있으면 알려 주고 바로 연결하게 한다(#71).
+ */
+function NoProjectNotice({
+  conversationId,
+  organizationId,
+  projectId,
+  onLinked,
+}: {
+  conversationId: string;
+  organizationId: string;
+  projectId: string | null;
+  onLinked: () => void;
+}) {
+  const projects = useProjects();
+  const linked = (projects.data ?? []).filter((p) => p.organization_id === organizationId);
+  const link = useMutation({
+    mutationFn: (id: string) => api(`/conversations/${conversationId}`, { method: "PATCH", body: { project_id: id } }),
+    onSuccess: () => {
+      onLinked();
+      toast.success("프로젝트를 연결했습니다. 다음 메시지부터 그 폴더에서 일합니다.");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  if (projectId || linked.length === 0) return null;
+  return (
+    <div className="mx-auto flex w-full max-w-3xl px-4 pb-2" role="status">
+      <div className="flex w-full flex-wrap items-center gap-2 rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-sm">
+        <FolderX className="size-4 shrink-0 text-warning" aria-hidden />
+        <span className="min-w-0 flex-1">
+          이 대화는 프로젝트 없이 <strong>빈 작업 폴더</strong>에서 실행됩니다. 에이전트가 코드를 볼 수 없습니다.
+        </span>
+        {linked.map((p) => (
+          <Button key={p.id} size="sm" variant="warning" disabled={link.isPending} onClick={() => link.mutate(p.id)}>
+            {p.name} 연결
+          </Button>
+        ))}
+      </div>
     </div>
   );
 }
