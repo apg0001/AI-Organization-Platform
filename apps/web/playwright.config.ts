@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -10,6 +10,10 @@ import { defineConfig } from "@playwright/test";
  */
 const home = process.env.AI_ORG_E2E_HOME ?? mkdtempSync(join(tmpdir(), "ai-org-e2e-"));
 const python = process.env.AI_ORG_E2E_PYTHON ?? "../server/.venv/bin/python";
+// 폴더 탐색(#65)은 서버의 홈 폴더 안만 보여 준다. 실제 홈 대신 고정된 가짜 홈을 쓴다.
+const userHome = join(home, "user-home");
+mkdirSync(join(userHome, "code", "picked-app", ".git"), { recursive: true });
+writeFileSync(join(userHome, "code", "picked-app", "package.json"), "{}");
 
 export default defineConfig({
   testDir: "./e2e",
@@ -34,7 +38,7 @@ export default defineConfig({
       command: `${python} -m uvicorn ai_org.main:app --host 127.0.0.1 --port 8100`,
       cwd: "../server",
       url: "http://127.0.0.1:8100/api/v1/system/health",
-      env: { AI_ORG_HOME: home, CODEX_HOME: join(home, "codex"), AI_ORG_RUNTIME: "fake", AI_ORG_PORT: "8100", AI_ORG_WEB_PORT: "3100" },
+      env: { HOME: userHome, AI_ORG_HOME: home, CODEX_HOME: join(home, "codex"), AI_ORG_RUNTIME: "fake", AI_ORG_PORT: "8100", AI_ORG_WEB_PORT: "3100" },
       reuseExistingServer: false,
       timeout: 60_000,
     },

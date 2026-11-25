@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Response
 from sqlalchemy import select
@@ -90,6 +91,62 @@ def scan_roots(db: DB) -> list[ProjectCandidate]:
                 )
             )
     return out
+
+
+# ── 폴더 탐색(프로젝트 추가용, #65) ──────────────────────────────────────
+# 브라우저 파일 창은 실제 경로를 주지 않고, 원격으로 쓰면 접속한 컴퓨터의 디스크를 보여 준다.
+# 그래서 서버 컴퓨터의 폴더를 앱 안에서 고르게 한다.
+# 홈 폴더 안의 하위 폴더 이름만 보여 준다(파일 내용·파일 목록 없음).
+
+BROWSE_LIMIT = 500
+
+
+@router.get("/fs/browse")
+def browse(path: str | None = None, hidden: bool = False) -> dict[str, Any]:
+    home = Path.home().resolve()
+    try:
+        target = svc.resolve_dir(path) if path else home
+    except svc.PathNotAllowed as exc:
+        raise HTTPException(422, str(exc)) from exc
+    if not svc.is_within(target, [home]):
+        raise HTTPException(403, "홈 폴더 밖은 탐색할 수 없습니다.")
+    entries: list[dict[str, Any]] = []
+    try:
+        children = sorted(target.iterdir(), key=lambda p: p.name.lower())
+    except OSError as exc:
+        raise HTTPException(403, "이 폴더를 읽을 수 없습니다.") from exc
+    truncated = False
+    for child in children:
+        if not hidden and child.name.startswith("."):
+            continue
+        try:
+            if not child.is_dir():
+                continue
+            resolved = child.resolve()
+        except OSError:
+            continue
+        if not svc.is_within(resolved, [home]):
+            continue  # 홈 밖을 가리키는 링크는 숨긴다
+        if len(entries) >= BROWSE_LIMIT:
+            truncated = True
+            break
+        entries.append(
+            {
+                "name": child.name,
+                "path": str(resolved),
+                "is_git": (resolved / ".git").exists(),
+                "kind": svc.detect_kind(resolved),
+            }
+        )
+    return {
+        "path": str(target),
+        "home": str(home),
+        "parent": str(target.parent) if target != home else None,
+        "is_git": (target / ".git").exists(),
+        "kind": svc.detect_kind(target),
+        "entries": entries,
+        "truncated": truncated,
+    }
 
 
 @router.get("/projects", response_model=list[ProjectOut])

@@ -116,6 +116,7 @@
 |---|---|---|
 | GET/POST/DELETE | `/project-roots[/{id}]` | 탐색 경로(`{path, max_depth 0..4}`, 루트 `/` 금지) |
 | GET | `/project-roots/scan` | 경로 아래 프로젝트 후보 |
+| GET | `/fs/browse?path=&hidden=` | 서버 컴퓨터 폴더 탐색(프로젝트 추가용). 홈 폴더 안만(심볼릭 링크 해석 후 검사, 밖이면 403), 하위 폴더 이름만(파일 제외), 숨김 폴더는 `hidden=true`일 때만, 최대 500개 → `{path, home, parent, is_git, kind, entries:[{name, path, is_git, kind}], truncated}` |
 | GET/POST | `/projects` | 목록 / 등록(등록 경로 안만, 심볼릭 링크 해석) |
 | GET/PATCH/DELETE | `/projects/{id}` | Git 정보 포함 상세 / 이름·설명·조직 / 등록 해제(파일 유지) |
 | GET | `/projects/{id}/tree?path=` | 한 단계 디렉터리 목록(프로젝트 밖 403) |

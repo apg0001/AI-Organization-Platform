@@ -178,6 +178,16 @@ test("프로젝트 등록과 기능 관리·사무실 화면", async ({ page }) 
   await page.getByRole("button", { name: "등록" }).first().click();
   await expect(page.getByRole("button", { name: "sample-app 등록 해제(파일은 지우지 않음)" })).toBeVisible();
 
+  // 폴더 탐색 창에서 서버 홈 폴더를 둘러보고 바로 추가한다(탐색 경로 + 프로젝트 한 번에, #65).
+  await page.getByRole("button", { name: "폴더에서 추가" }).click();
+  const picker = page.getByRole("dialog", { name: "폴더에서 프로젝트 추가" });
+  await picker.getByRole("list", { name: "하위 폴더" }).getByRole("button", { name: /code/ }).click();
+  await picker.getByRole("list", { name: "하위 폴더" }).getByRole("button", { name: /picked-app/ }).click();
+  await expect(picker.getByRole("navigation", { name: "현재 위치" })).toContainText("picked-app");
+  await page.screenshot({ path: test.info().outputPath("folder-picker.png") });
+  await picker.getByRole("button", { name: "이 폴더 추가" }).click();
+  await expect(page.getByRole("button", { name: "picked-app 등록 해제(파일은 지우지 않음)" })).toBeVisible();
+
   await page.getByRole("link", { name: "기능 관리", exact: true }).click();
   await expect(page.getByRole("tab", { name: /Skills/ })).toBeVisible();
   await page.getByRole("tab", { name: /MCP 서버/ }).click();
