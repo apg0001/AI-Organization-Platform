@@ -53,6 +53,8 @@ import { cn, timeAgo } from "@/lib/utils";
 import { TaskStatus } from "@/features/dashboard/DashboardPage";
 
 import { Composer, type SendPayload } from "./Composer";
+import { LiveDock, type Unseen } from "./LiveDock";
+import { dockItems, showDock } from "./dockState";
 import { ACTIVITY_LABELS, MessageView } from "./Messages";
 
 const PANEL_KEY = "ai-org.command.panel";
@@ -244,6 +246,45 @@ function ChatPane({
   const scrollRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const agentById = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents]);
+  // 화면에 보이는 메시지(#46). 동시 응답 도크와 '새 응답' 알림이 화면 밖 메시지만 골라 보여 준다.
+  const [visible, setVisible] = useState<ReadonlySet<string>>(new Set());
+  const visibleRef = useRef<Set<string>>(new Set());
+  const [unseen, setUnseen] = useState<Unseen[]>([]);
+  const messageCount = conv.data?.messages.length ?? 0;
+
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root || typeof IntersectionObserver === "undefined") return;
+    const seen = new Set<string>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = (entry.target as HTMLElement).dataset.messageId;
+          if (!id) continue;
+          if (entry.isIntersecting) seen.add(id);
+          else seen.delete(id);
+        }
+        visibleRef.current = new Set(seen);
+        setVisible(new Set(seen));
+        // 스크롤해서 본 응답은 '새 응답' 알림에서 뺀다.
+        setUnseen((list) => (list.some((u) => seen.has(u.messageId)) ? list.filter((u) => !seen.has(u.messageId)) : list));
+      },
+      { root, threshold: 0.15 },
+    );
+    root.querySelectorAll<HTMLElement>("[data-message-id]").forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [conversationId, messageCount]);
+
+  useEffect(() => setUnseen([]), [conversationId]);
+
+  const jumpTo = (messageId: string) => {
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
+    if (!el) return;
+    stick.current = false;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+    setUnseen((list) => list.filter((u) => u.messageId !== messageId));
+  };
 
   useEffect(
     () =>
@@ -262,6 +303,18 @@ function ChatPane({
           });
         } else if (event.type === "message.created" || event.type === "message.status") {
           void queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
+        } else if (event.type === "message.completed") {
+          // 화면 밖에서 끝난 응답은 '새 응답' 알림으로 알려 준다(#46).
+          const done = event.message as { id: string; role: string; agent_id: string | null; status: string };
+          if (done.role !== "assistant" || visibleRef.current.has(done.id)) return;
+          const root = scrollRef.current;
+          const el = root?.querySelector<HTMLElement>(`[data-message-id="${done.id}"]`);
+          const above = Boolean(root && el && el.getBoundingClientRect().top < root.getBoundingClientRect().top);
+          setUnseen((list) =>
+            list.some((u) => u.messageId === done.id)
+              ? list
+              : [...list, { messageId: done.id, agentId: done.agent_id, failed: done.status !== "done", above }].slice(-4),
+          );
         }
       }),
     [conversationId, queryClient],
@@ -275,10 +328,11 @@ function ChatPane({
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
   const send = async (p: SendPayload) => {
     try {
-      await api(`/conversations/${conversationId}/messages`, {
+      const res = await api<{ queued_agent_ids: string[] }>(`/conversations/${conversationId}/messages`, {
         method: "POST",
         body: { content: p.content, mention_agent_ids: p.mentionIds, mention_all: p.mentionAll, attachment_ids: p.attachmentIds },
       });
+      if (res.queued_agent_ids?.length) toast("응답 중이라 대기열에 넣었습니다. 지금 응답이 끝나면 이어서 전달합니다.");
       stick.current = true;
       refresh();
     } catch (e) {
@@ -304,6 +358,10 @@ function ChatPane({
     void api<{ stopped: number }>(`/conversations/${conversationId}/stop`, { method: "POST" }).then((r) =>
       toast(r.stopped ? `실행 ${r.stopped}개를 중지했습니다.` : "실행 중인 작업이 없습니다."),
     );
+  const cancelQueued = (messageId: string) =>
+    void api(`/conversations/${conversationId}/messages/${messageId}/cancel-queued`, { method: "POST" })
+      .then(refresh)
+      .catch((e: Error) => toast.error(e.message));
   const regenerate = (messageId: string) =>
     void api(`/conversations/${conversationId}/messages/${messageId}/regenerate`, { method: "POST" })
       .then(refresh)
@@ -313,6 +371,7 @@ function ChatPane({
   if (conv.error || !conv.data) return <ErrorState className="m-6" error={conv.error} retry={() => void conv.refetch()} />;
   const c = conv.data;
   const busy = c.messages.some((m) => m.status === "pending" || m.status === "streaming");
+  const live = dockItems(c.messages, liveText, liveActivity);
   const target =
     c.target_kind === "agent"
       ? agentById.get(c.target_id ?? "")?.name
@@ -345,7 +404,11 @@ function ChatPane({
           ) : null}
           {c.messages.map((m) => (
             // 방금 생긴 메시지만 떠오르며 나타난다(대화를 열 때 불러온 기록은 그대로).
-            <div key={m.id} className={cn(Date.now() - Date.parse(m.created_at) < 8_000 && "message-in")}>
+            <div
+              key={m.id}
+              data-message-id={m.id}
+              className={cn("scroll-mt-4", Date.now() - Date.parse(m.created_at) < 8_000 && "message-in")}
+            >
             <MessageView
               message={m}
               agent={m.agent_id ? agentById.get(m.agent_id) : undefined}
@@ -353,6 +416,8 @@ function ChatPane({
               liveText={liveText[m.id]}
               liveActivity={liveActivity[m.id]}
               onRegenerate={m.role === "assistant" && !busy ? () => regenerate(m.id) : undefined}
+              queuedFor={m.data.queued?.map((q) => agentById.get(q.agent_id)?.name ?? "에이전트")}
+              onCancelQueued={m.data.queue_state === "waiting" ? () => cancelQueued(m.id) : undefined}
               onAction={() => !panelOpen && togglePanel()}
             />
             </div>
@@ -361,6 +426,15 @@ function ChatPane({
       </div>
       <PendingApprovalBanner conversationId={c.id} />
       <div className="mx-auto w-full max-w-3xl">
+        <LiveDock
+          items={live}
+          visible={visible}
+          show={showDock(live, visible)}
+          unseen={unseen}
+          agentById={agentById}
+          onJump={jumpTo}
+          onDismiss={(id) => setUnseen((list) => list.filter((u) => u.messageId !== id))}
+        />
         <Composer
           agents={agents}
           commands={commands.data ?? []}
@@ -368,7 +442,11 @@ function ChatPane({
           onSend={send}
           onCommand={runCommand}
           onStop={stop}
-          placeholder={`${target ?? "대상"}에게 메시지 보내기…`}
+          placeholder={
+            busy
+              ? "응답 중에도 보낼 수 있어요. 지금 응답이 끝나면 이어서 전달합니다…"
+              : `${target ?? "대상"}에게 메시지 보내기…`
+          }
         />
       </div>
     </section>

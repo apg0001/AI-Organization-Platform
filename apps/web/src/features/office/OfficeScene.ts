@@ -94,6 +94,11 @@ export class OfficeScene extends Phaser.Scene {
   private readonly actors = new Map<string, Actor>();
   private state: OfficeState;
   private seats = new Map<string, Point>();
+  /**
+   * AI Organization 추가: 화면을 연 뒤 첫 상태를 적용했는지. 첫 상태의 캐릭터는 출입구에서 걸어오지 않고
+   * 자기 자리에서 바로 시작한다(화면을 열 때마다 입장 연출을 기다리지 않게, #43). 이후 새로 생긴 캐릭터만 출근한다.
+   */
+  private settled = false;
   private sinceReplan = 0;
   private camera: CameraState = initialCamera;
   /** 직전 핀치의 두 손가락 거리(px). 0이면 핀치 중이 아님. */
@@ -324,6 +329,8 @@ export class OfficeScene extends Phaser.Scene {
       return;
     }
     this.seats = assignSeats(this.map, state);
+    const firstSync = !this.settled;
+    this.settled = true;
     const alive = new Set<string>();
     for (const agent of state.agents) {
       alive.add(agent.id);
@@ -342,6 +349,12 @@ export class OfficeScene extends Phaser.Scene {
       this.plan(actor, Date.now());
     }
     this.assignTargets();
+    if (firstSync) {
+      for (const actor of this.actors.values()) {
+        actor.position = { ...actor.target };
+        actor.path = [];
+      }
+    }
     for (const [id, actor] of this.actors) {
       if (!alive.has(id) && !actor.leaving) {
         // 상태에서 빠진 캐릭터도 순간 사라지지 않고 퇴근한다.

@@ -97,7 +97,8 @@
 |---|---|---|
 | GET/POST | `/conversations` | `?organization_id=` 목록 / `{organization_id, target_kind, target_id?, project_id?}` 생성 |
 | GET/PATCH/DELETE | `/conversations/{id}` | 메시지 포함 상세 / 제목·대상·프로젝트·컨텍스트·보관 / 삭제(첨부 파일도 삭제) |
-| POST | `/conversations/{id}/messages` | `{content, mention_agent_ids[], mention_all, attachment_ids[]}` → 202 `{user_message, assistant_message_ids}` |
+| POST | `/conversations/{id}/messages` | `{content, mention_agent_ids[], mention_all, attachment_ids[]}` → 202 `{user_message, assistant_message_ids, queued_agent_ids}`. 대상 에이전트가 이 대화에서 응답 중이면 거절하지 않고 대기열에 넣는다(user 메시지 `data.queued`, `data.queue_state`: waiting·delivered·cancelled). 그 에이전트의 실행이 끝나면 대기 메시지를 순서대로 모아 같은 세션으로 이어서 전달한다. 실행 중인 턴 한가운데에 끼워 넣지는 않는다 |
+| POST | `/conversations/{id}/messages/{mid}/cancel-queued` | 아직 전달 안 된 대기 메시지 취소(대기 중이 아니면 409). `/stop`과 서버 재시작도 대기 메시지를 취소한다 |
 | POST | `/conversations/{id}/messages/{mid}/regenerate` | 같은 질문으로 다시 생성 |
 | POST | `/conversations/{id}/stop` | 이 대화의 실행 중지 → `{stopped}` |
 | GET | `/commands` | 슬래시 명령 명세 |

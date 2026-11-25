@@ -232,12 +232,60 @@ def test_stop_interrupts_run(chat: TestClient, fake: FakeRuntime) -> None:
     res = chat.post(f"/api/v1/conversations/{conv['id']}/messages", json={"content": "오래 걸리는 일"})
     reply_id = res.json()["assistant_message_ids"][0]
     time.sleep(0.1)
-    assert (
-        chat.post(f"/api/v1/conversations/{conv['id']}/messages", json={"content": "또"}).status_code == 409
-    )
+    queued = chat.post(f"/api/v1/conversations/{conv['id']}/messages", json={"content": "또"})
+    assert queued.status_code == 202 and queued.json()["queued_agent_ids"]
     assert chat.post(f"/api/v1/conversations/{conv['id']}/stop").json()["stopped"] == 1
     msg = wait_message(chat, conv["id"], reply_id, timeout=8)
     assert msg["status"] == "interrupted"
+    # 중지하면 대기 메시지도 취소되고, 새 응답이 저절로 시작되지 않는다.
+    time.sleep(0.2)
+    detail = chat.get(f"/api/v1/conversations/{conv['id']}").json()
+    user = next(m for m in detail["messages"] if m["id"] == queued.json()["user_message"]["id"])
+    assert user["data"]["queue_state"] == "cancelled"
+    assert [m["role"] for m in detail["messages"]].count("assistant") == 1
+
+
+def test_message_while_busy_is_queued_and_delivered_after(chat: TestClient, fake: FakeRuntime) -> None:
+    org, conv = setup_org(chat)
+    ceo = next(a for a in org["agents"] if a["is_lead"])
+    fake.queues[ceo["id"]] = [[("sleep", 0.4), ("text", "첫 작업 끝")], [("text", "추가 요청 반영")]]
+    first = chat.post(f"/api/v1/conversations/{conv['id']}/messages", json={"content": "첫 작업"}).json()
+    time.sleep(0.1)
+    a = chat.post(f"/api/v1/conversations/{conv['id']}/messages", json={"content": "이것도 해 줘"}).json()
+    b = chat.post(f"/api/v1/conversations/{conv['id']}/messages", json={"content": "저것도"}).json()
+    assert a["assistant_message_ids"] == [] and a["queued_agent_ids"] == [ceo["id"]]
+    assert a["user_message"]["data"]["queue_state"] == "waiting"
+    wait_message(chat, conv["id"], first["assistant_message_ids"][0])
+
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        detail = chat.get(f"/api/v1/conversations/{conv['id']}").json()
+        replies = [m for m in detail["messages"] if m["role"] == "assistant"]
+        if len(replies) == 2 and replies[1]["status"] == "done":
+            break
+        time.sleep(0.05)
+    assert [m["content"] for m in replies] == ["첫 작업 끝", "추가 요청 반영"]
+    # 대기 메시지 두 개를 한 번에 모아, 같은 에이전트에게 이어서 보냈다.
+    prompt = fake.requests[-1].prompt
+    assert "메시지 2개" in prompt and "이것도 해 줘" in prompt and "저것도" in prompt
+    states = {m["id"]: m["data"].get("queue_state") for m in detail["messages"] if m["role"] == "user"}
+    assert states[a["user_message"]["id"]] == states[b["user_message"]["id"]] == "delivered"
+
+
+def test_cancel_queued_message(chat: TestClient, fake: FakeRuntime) -> None:
+    _, conv = setup_org(chat)
+    fake.script = [("sleep", 0.4), ("text", "끝")]
+    first = chat.post(f"/api/v1/conversations/{conv['id']}/messages", json={"content": "일"}).json()
+    time.sleep(0.1)
+    queued = chat.post(f"/api/v1/conversations/{conv['id']}/messages", json={"content": "취소할 것"}).json()
+    mid = queued["user_message"]["id"]
+    res = chat.post(f"/api/v1/conversations/{conv['id']}/messages/{mid}/cancel-queued")
+    assert res.status_code == 200 and res.json()["data"]["queue_state"] == "cancelled"
+    assert chat.post(f"/api/v1/conversations/{conv['id']}/messages/{mid}/cancel-queued").status_code == 409
+    wait_message(chat, conv["id"], first["assistant_message_ids"][0])
+    time.sleep(0.2)
+    detail = chat.get(f"/api/v1/conversations/{conv['id']}").json()
+    assert [m["role"] for m in detail["messages"]].count("assistant") == 1
 
 
 def test_commands(chat: TestClient, fake: FakeRuntime) -> None:
