@@ -4,7 +4,16 @@
  */
 
 import { FileText, Loader2, Paperclip, SendHorizontal, Square, X } from "lucide-react";
-import { type ClipboardEvent, type DragEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ClipboardEvent,
+  type DragEvent,
+  type KeyboardEvent,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
 import { AgentAvatar } from "@/components/agent/AgentAvatar";
@@ -14,6 +23,20 @@ import { cn, formatBytes } from "@/lib/utils";
 
 const MAX_BYTES = 20 * 1024 * 1024;
 const MAX_FILES = 10;
+/** 입력창이 내용에 맞춰 늘어나는 최대 줄 수. 넘으면 입력창 안에서 스크롤한다. */
+export const MAX_LINES = 5;
+
+/** 내용 높이에 맞춰 늘리되 최대 줄 수에서 멈추고, 넘치면 스크롤을 켠다. */
+export function fitTextarea(el: HTMLTextAreaElement, maxLines = MAX_LINES): void {
+  const style = window.getComputedStyle(el);
+  const line = Number.parseFloat(style.lineHeight) || 24;
+  const padding = Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom) || 0;
+  const max = line * maxLines + padding;
+  el.style.height = "auto";
+  const height = Math.min(el.scrollHeight, max);
+  el.style.height = `${height}px`;
+  el.style.overflowY = el.scrollHeight > max + 1 ? "auto" : "hidden";
+}
 export const ACCEPT =
   ".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.md,.csv,.tsv,.json,.jsonl,.yaml,.yml,.toml,.xml,.html,.css,.py,.ts,.tsx,.js,.jsx,.go,.rs,.java,.c,.cpp,.h,.sh,.sql,.log,.diff,.patch";
 
@@ -66,6 +89,11 @@ export function Composer({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const enabled = agents.filter((a) => a.enabled);
+
+  // 글이 바뀔 때마다(입력·붙여넣기·보낸 뒤 비우기) 높이를 맞춘다.
+  useLayoutEffect(() => {
+    if (inputRef.current) fitTextarea(inputRef.current);
+  }, [text]);
 
   useEffect(() => () => files.forEach((f) => f.preview && URL.revokeObjectURL(f.preview)), []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -292,11 +320,11 @@ export function Composer({
           onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
-          rows={2}
+          rows={1}
           disabled={disabled}
           placeholder={placeholder}
           aria-label="메시지"
-          className="max-h-60 min-h-11 resize-none bg-transparent px-1.5 text-base placeholder:text-faint focus:outline-none"
+          className="resize-none overflow-y-hidden bg-transparent px-1.5 py-1 text-base leading-6 placeholder:text-faint focus:outline-none"
         />
         <div className="flex items-center gap-1">
           <input ref={fileRef} type="file" multiple accept={ACCEPT} hidden onChange={(e) => e.target.files && addFiles(e.target.files)} />
