@@ -298,6 +298,10 @@ export interface ChatMessage {
     command?: string;
     result?: CommandResult;
     delegated_by?: string;
+    /** 작업 중에 보내 대기 중인 메시지(#45): 아직 전달되지 않은 대상과 상태. */
+    queued?: { agent_id: string }[];
+    queue_state?: "waiting" | "delivered" | "cancelled";
+    queue_note?: string;
   };
   activity: ActivityEntry[];
   status: "pending" | "streaming" | "done" | "error" | "interrupted";

@@ -275,10 +275,11 @@ function ChatPane({
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
   const send = async (p: SendPayload) => {
     try {
-      await api(`/conversations/${conversationId}/messages`, {
+      const res = await api<{ queued_agent_ids: string[] }>(`/conversations/${conversationId}/messages`, {
         method: "POST",
         body: { content: p.content, mention_agent_ids: p.mentionIds, mention_all: p.mentionAll, attachment_ids: p.attachmentIds },
       });
+      if (res.queued_agent_ids?.length) toast("응답 중이라 대기열에 넣었습니다. 지금 응답이 끝나면 이어서 전달합니다.");
       stick.current = true;
       refresh();
     } catch (e) {
@@ -304,6 +305,10 @@ function ChatPane({
     void api<{ stopped: number }>(`/conversations/${conversationId}/stop`, { method: "POST" }).then((r) =>
       toast(r.stopped ? `실행 ${r.stopped}개를 중지했습니다.` : "실행 중인 작업이 없습니다."),
     );
+  const cancelQueued = (messageId: string) =>
+    void api(`/conversations/${conversationId}/messages/${messageId}/cancel-queued`, { method: "POST" })
+      .then(refresh)
+      .catch((e: Error) => toast.error(e.message));
   const regenerate = (messageId: string) =>
     void api(`/conversations/${conversationId}/messages/${messageId}/regenerate`, { method: "POST" })
       .then(refresh)
@@ -353,6 +358,8 @@ function ChatPane({
               liveText={liveText[m.id]}
               liveActivity={liveActivity[m.id]}
               onRegenerate={m.role === "assistant" && !busy ? () => regenerate(m.id) : undefined}
+              queuedFor={m.data.queued?.map((q) => agentById.get(q.agent_id)?.name ?? "에이전트")}
+              onCancelQueued={m.data.queue_state === "waiting" ? () => cancelQueued(m.id) : undefined}
               onAction={() => !panelOpen && togglePanel()}
             />
             </div>
@@ -368,7 +375,11 @@ function ChatPane({
           onSend={send}
           onCommand={runCommand}
           onStop={stop}
-          placeholder={`${target ?? "대상"}에게 메시지 보내기…`}
+          placeholder={
+            busy
+              ? "응답 중에도 보낼 수 있어요. 지금 응답이 끝나면 이어서 전달합니다…"
+              : `${target ?? "대상"}에게 메시지 보내기…`
+          }
         />
       </div>
     </section>
