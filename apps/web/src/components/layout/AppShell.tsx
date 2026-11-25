@@ -4,14 +4,20 @@ import {
   ChevronsUpDown,
   FolderGit2,
   LayoutDashboard,
+  LogOut,
   MessagesSquare,
   Network,
   Plus,
+  Settings,
   Sparkles,
+  UserRound,
 } from "lucide-react";
+import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router";
 
-import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/overlay";
+import { Dialog, Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/overlay";
+import { AccountDialog } from "@/features/auth/AccountDialog";
+import { useAuth } from "@/features/auth/AuthGate";
 import { useLiveConnected } from "@/lib/live";
 import { useApprovals, useCurrentOrg, useOrganizations, useSystemInfo } from "@/lib/queries";
 import { cn } from "@/lib/utils";
@@ -93,6 +99,8 @@ function AppSidebar() {
           <span className="max-md:sr-only">조직 설계</span>
         </NavLink>
       </div>
+      <div className="mt-auto" />
+      <UserMenu />
       <SystemStatus />
     </nav>
   );
@@ -137,12 +145,43 @@ function OrgSwitcher() {
   );
 }
 
+function UserMenu() {
+  const { user, authEnabled, logout } = useAuth();
+  const [open, setOpen] = useState(false);
+  if (!authEnabled || !user) return null;
+  return (
+    <>
+      <Menu>
+        <MenuTrigger
+          className="mx-2 mb-1 flex h-9 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-sm text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+          aria-label="계정 메뉴"
+        >
+          <UserRound className="size-4 shrink-0" aria-hidden />
+          <span className="truncate max-md:sr-only">{user.display_name}</span>
+        </MenuTrigger>
+        <MenuContent align="start" side="top" className="w-52">
+          <MenuLabel>{user.username}</MenuLabel>
+          <MenuItem onSelect={() => setOpen(true)}>
+            <Settings /> 계정 설정
+          </MenuItem>
+          <MenuItem onSelect={() => void logout()}>
+            <LogOut /> 로그아웃
+          </MenuItem>
+        </MenuContent>
+      </Menu>
+      <Dialog open={open} onOpenChange={setOpen}>
+        {open ? <AccountDialog onClose={() => setOpen(false)} /> : null}
+      </Dialog>
+    </>
+  );
+}
+
 function SystemStatus() {
   const info = useSystemInfo();
   const live = useLiveConnected();
   const claude = info.data?.runtimes.find((r) => r.id === "claude-code");
   return (
-    <div className="mt-auto flex flex-col gap-1.5 border-t border-border px-3 py-3 text-2xs text-faint max-md:hidden">
+    <div className="flex flex-col gap-1.5 border-t border-border px-3 py-3 text-2xs text-faint max-md:hidden">
       <span className="flex items-center gap-1.5" title={claude?.detail ?? claude?.path ?? undefined}>
         <span
           className="size-1.5 rounded-full"

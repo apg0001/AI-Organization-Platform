@@ -42,7 +42,8 @@
 | UI-1 | 대시보드·조직 설계·커맨드 센터·조직·에이전트 상세·프로젝트·기능 관리·사무실 | Implemented |
 | UI-2 | 아이소메트릭 사무실(Agent Office 렌더러 재사용) | Implemented |
 | AUTH-1 | 로컬 단일 사용자 보호(루프백·Host·Origin 검사) | Tested |
-| AUTH-2 | 로컬 계정·로그인·다중 사용자·OAuth | Planned(설계: SECURITY.md) |
+| AUTH-2 | 로컬 계정·로그인·로그아웃·세션·비밀번호 변경·계정 초기화 | Tested |
+| AUTH-3 | 다중 사용자·사용자별 조직 접근·OAuth | Planned(설계: SECURITY.md §7) |
 | TUT-1 | 튜토리얼 | Planned(Phase 8) |
 
 ## 3. 비기능 요구사항

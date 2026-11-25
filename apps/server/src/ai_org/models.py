@@ -363,3 +363,30 @@ class OrgRevision(Base):
     summary: Mapped[list[str]] = mapped_column(JSON, default=list)
     source: Mapped[str] = mapped_column(String(60), default="design")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
+
+
+class User(Base):
+    """앱 로그인 계정(로컬). Claude Code 인증과 무관하다. 비밀번호는 scrypt 해시만 저장한다."""
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    username: Mapped[str] = mapped_column(String(40), unique=True)
+    display_name: Mapped[str] = mapped_column(String(80), default="")
+    password_hash: Mapped[str] = mapped_column(String(255))
+    settings: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    last_login_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+
+
+class AuthSession(Base):
+    """로그인 세션. 쿠키의 토큰 원문은 저장하지 않고 SHA-256 해시만 저장한다."""
+
+    __tablename__ = "auth_sessions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    last_seen_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)

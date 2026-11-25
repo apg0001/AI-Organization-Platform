@@ -7,6 +7,7 @@ import { LoadingState } from "@/components/common/states";
 import { AppShell } from "@/components/layout/AppShell";
 import { TooltipProvider } from "@/components/ui/overlay";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
+import { AuthGate } from "@/features/auth/AuthGate";
 import { useLiveConnection } from "@/lib/live";
 import { CURRENT_ORG_KEY, CurrentOrgContext, useOrganizations } from "@/lib/queries";
 
@@ -56,17 +57,25 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <RouterProvider router={router} />
+        <Toaster theme="dark" position="bottom-right" toastOptions={{ className: "!bg-surface-2 !border-border-strong !text-fg" }} />
       </TooltipProvider>
     </QueryClientProvider>
   );
 }
 
 function Root() {
+  return (
+    <AuthGate>
+      <Authenticated />
+    </AuthGate>
+  );
+}
+
+function Authenticated() {
   useLiveConnection();
   return (
     <CurrentOrgProvider>
       <Outlet />
-      <Toaster theme="dark" position="bottom-right" toastOptions={{ className: "!bg-surface-2 !border-border-strong !text-fg" }} />
     </CurrentOrgProvider>
   );
 }

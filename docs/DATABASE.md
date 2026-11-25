@@ -36,6 +36,8 @@ Project *─1 Organization(선택) · ProjectRoot(독립)
 | attachments | conversation_id(보내기 전 NULL), filename, media_type, size, sha256, stored_path | 첨부 |
 | org_designs | organization_id, origin, spec(JSON `OrgSpec`), messages(JSON), notes(JSON), designer_session_id, status, busy | 설계 초안 |
 | org_revisions | organization_id, spec(JSON), summary(JSON), source | 적용 이력 |
+| users | username(유일), display_name, password_hash(scrypt), settings(JSON), last_login_at | 앱 로그인 계정 |
+| auth_sessions | user_id, token_hash(SHA-256, 유일), expires_at, last_seen_at | 로그인 세션 |
 
 ## 값 규칙
 
