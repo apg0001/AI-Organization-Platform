@@ -1,0 +1,110 @@
+name: Desktop
+
+# 데스크톱 앱(Tauri 2) OS별 빌드. 태그(v*)면 만든 설치 파일을 같은 이름의 GitHub Release에 올린다.
+# 서명하지 않은 빌드다(docs/DEPLOYMENT.md).
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "apps/desktop/**"
+      - "apps/server/**"
+      - "apps/web/**"
+      - "scripts/build-sidecar.sh"
+      - "scripts/smoke_*.py"
+      - ".github/workflows/desktop.yml"
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 데스크톱 (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            os: ubuntu-24.04
+            bundles: deb,appimage
+          - name: Linux arm64
+            os: ubuntu-24.04-arm
+            bundles: deb,appimage
+          - name: macOS arm64
+            os: macos-14
+            bundles: app,dmg
+          - name: Windows x64
+            os: windows-2022
+            bundles: nsis
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write # 태그 빌드에서 릴리스 파일 올리기
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Linux 빌드 의존성
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf xvfb file
+      - name: Rust 준비
+        run: |
+          if ! command -v cargo >/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+      - run: rustc -vV && cargo -V
+      - name: 웹 빌드
+        run: npm ci && npm run build
+      - name: 백엔드 단일 실행 파일(PyInstaller)
+        run: |
+          python -m pip install --upgrade pip
+          pip install ./apps/server "pyinstaller>=6.11"
+          PYTHON=python scripts/build-sidecar.sh
+          ls -la apps/desktop/src-tauri/binaries
+      - name: 백엔드 스모크(웹 제공·요약 API·입력 종료 시 종료)
+        run: python scripts/smoke_sidecar.py apps/desktop/src-tauri/binaries
+      - name: 앱 빌드
+        working-directory: apps/desktop
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: npx --yes @tauri-apps/cli@2.12.6 build --bundles ${{ matrix.bundles }}
+      - name: 앱 실행 스모크(가상 화면)
+        if: runner.os == 'Linux'
+        run: python scripts/smoke_desktop.py "$PWD/apps/desktop/src-tauri/target/release/ai-org-desktop"
+      - name: 설치 파일 목록
+        id: files
+        run: |
+          find apps/desktop/src-tauri/target/release/bundle -maxdepth 2 -type f \
+            \( -name '*.deb' -o -name '*.AppImage' -o -name '*.dmg' -o -name '*-setup.exe' \) | tee files.txt
+          test -s files.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: desktop-${{ matrix.os }}
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/deb/*.deb
+            apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          retention-days: 7
+          if-no-files-found: error
+      - name: 릴리스에 올리기
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: while IFS= read -r f; do gh release upload "$GITHUB_REF_NAME" "$f" --clobber; done < files.txt

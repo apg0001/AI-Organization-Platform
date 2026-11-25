@@ -7,6 +7,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
+import { type ServerNotification, showBrowserNotification } from "./notify";
+
 export interface LiveEvent {
   type: string;
   [key: string]: unknown;
@@ -92,6 +94,9 @@ export function useLiveConnection(): void {
         case "usage.threshold":
           toast.warning(String(event.summary ?? "사용량 임계치 도달"));
           void queryClient.invalidateQueries({ queryKey: ["usage"] });
+          break;
+        case "notify":
+          showBrowserNotification(event.notification as ServerNotification);
           break;
         case "usage.updated":
           void queryClient.invalidateQueries({ queryKey: ["usage"] });
