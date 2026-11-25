@@ -33,6 +33,33 @@ export function isCommandInput(text: string): boolean {
   return /^\/[\w-]+(\s|$)/.test(text);
 }
 
+/**
+ * 보낸 메시지 기록 탐색(↑/↓, #69). index는 기록 안 위치(null이면 쓰던 초안).
+ * 위로 가면 더 오래된 기록, 아래로 끝을 지나면 초안으로 돌아온다. 바뀌지 않으면 null.
+ */
+export function stepHistory(
+  history: string[],
+  index: number | null,
+  direction: "up" | "down",
+): { index: number | null } | null {
+  if (history.length === 0) return null;
+  if (direction === "up") {
+    if (index === null) return { index: history.length - 1 };
+    return index > 0 ? { index: index - 1 } : null;
+  }
+  if (index === null) return null;
+  return index < history.length - 1 ? { index: index + 1 } : { index: null };
+}
+
+/** 이 대화에서 보낸 글(오래된 것 먼저), 바로 이어진 같은 글은 하나로. */
+export function sentHistory(messages: { role: string; content: string }[]): string[] {
+  const out: string[] = [];
+  for (const m of messages) {
+    if ((m.role === "user" || m.role === "command") && m.content.trim() && out.at(-1) !== m.content) out.push(m.content);
+  }
+  return out;
+}
+
 /** 내용 높이에 맞춰 늘리되 최대 줄 수에서 멈추고, 넘치면 스크롤을 켠다. */
 export function fitTextarea(el: HTMLTextAreaElement, maxLines = MAX_LINES): void {
   const style = window.getComputedStyle(el);
@@ -77,7 +104,10 @@ export function Composer({
   onCommand,
   onStop,
   placeholder,
+  history = [],
 }: {
+  /** ↑/↓로 다시 불러올 보낸 글(오래된 것 먼저). */
+  history?: string[];
   agents: Agent[];
   commands: CommandSpec[];
   busy: boolean;
@@ -93,6 +123,8 @@ export function Composer({
   const [active, setActive] = useState(0);
   const [caret, setCaret] = useState(0);
   const [sending, setSending] = useState(false);
+  const [historyIndex, setHistoryIndex] = useState<number | null>(null);
+  const draft = useRef("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const enabled = agents.filter((a) => a.enabled);
@@ -207,6 +239,8 @@ export function Composer({
         setFiles([]);
       }
       setText("");
+      setHistoryIndex(null);
+      draft.current = "";
     } finally {
       setSending(false);
     }
@@ -227,6 +261,27 @@ export function Composer({
       }
       if (e.key === "Escape") {
         setCaret(-1);
+        return;
+      }
+    }
+    if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
+      const el = e.currentTarget;
+      const before = el.value.slice(0, el.selectionStart);
+      const after = el.value.slice(el.selectionEnd);
+      // 여러 줄 글 안에서는 줄 이동을 막지 않는다: 첫 줄에서 ↑, 마지막 줄에서 ↓일 때만 기록을 탐색한다.
+      const atEdge = e.key === "ArrowUp" ? !before.includes("\n") : !after.includes("\n");
+      const next = atEdge ? stepHistory(history, historyIndex, e.key === "ArrowUp" ? "up" : "down") : null;
+      if (next) {
+        e.preventDefault();
+        if (historyIndex === null) draft.current = text;
+        const value = next.index === null ? draft.current : history[next.index]!;
+        setHistoryIndex(next.index);
+        setText(value);
+        window.requestAnimationFrame(() => {
+          const pos = e.key === "ArrowUp" ? 0 : value.length;
+          inputRef.current?.setSelectionRange(pos, pos);
+          setCaret(pos);
+        });
         return;
       }
     }
@@ -321,6 +376,7 @@ export function Composer({
           ref={inputRef}
           value={text}
           onChange={(e) => {
+            setHistoryIndex(null);
             setText(e.target.value);
             setCaret(e.target.selectionStart);
           }}
@@ -339,7 +395,7 @@ export function Composer({
             <Paperclip />
           </IconButton>
           <span className="truncate px-1 text-2xs text-faint">
-            {command ? `${command.usage} — ${command.description}` : "/ 명령 · @ 에이전트 지정 · Shift+Enter 줄바꿈"}
+            {command ? `${command.usage} — ${command.description}` : "/ 명령 · @ 에이전트 지정 · ↑↓ 보낸 글 · Shift+Enter 줄바꿈"}
           </span>
           <span className="ml-auto" />
           {busy ? (

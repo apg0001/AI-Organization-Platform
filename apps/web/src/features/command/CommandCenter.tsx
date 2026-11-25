@@ -52,7 +52,7 @@ import {
 import { cn, timeAgo } from "@/lib/utils";
 import { TaskStatus } from "@/features/dashboard/DashboardPage";
 
-import { Composer, type SendPayload } from "./Composer";
+import { Composer, type SendPayload, sentHistory } from "./Composer";
 import { LiveDock, type Unseen } from "./LiveDock";
 import { dockItems, showDock } from "./dockState";
 import { ACTIVITY_LABELS, MessageView } from "./Messages";
@@ -439,6 +439,7 @@ function ChatPane({
           agents={agents}
           commands={commands.data ?? []}
           busy={busy}
+          history={sentHistory(c.messages)}
           onSend={send}
           onCommand={runCommand}
           onStop={stop}

@@ -126,6 +126,17 @@ test("커맨드 센터: 스트리밍 응답·명령·멘션 자동완성·승인
   await input.press("Enter");
   await expect(chatLog.getByText("가짜 런타임 응답입니다:").last()).toContainText("/tmp/e2e-path 이 폴더 봐 줘");
 
+  // ↑/↓로 보낸 글을 다시 불러오고, 끝을 지나면 쓰던 초안으로 돌아온다(#69).
+  await input.fill("쓰던 초안");
+  await input.press("ArrowUp");
+  await expect(input).toHaveValue("/tmp/e2e-path 이 폴더 봐 줘");
+  await input.press("ArrowUp");
+  await expect(input).toHaveValue("안녕하세요 팀");
+  await input.press("ArrowDown");
+  await input.press("ArrowDown");
+  await expect(input).toHaveValue("쓰던 초안");
+  await input.fill("");
+
   await input.fill("/ag");
   await expect(page.getByRole("listbox", { name: "명령어" }).getByRole("option", { name: /\/agents/ })).toBeVisible();
   await input.press("Enter");
