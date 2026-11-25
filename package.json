@@ -2,6 +2,7 @@
   "name": "ai-org-platform",
   "version": "0.0.1",
   "private": true,
+  "license": "Apache-2.0",
   "workspaces": [
     "apps/web"
   ],

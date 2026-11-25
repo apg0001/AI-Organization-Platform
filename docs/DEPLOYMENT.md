@@ -24,6 +24,10 @@ npx --workspace @ai-org/web vite preview       # 127.0.0.1:3000에서 dist 제�
 Tauri 검토 중: Python 백엔드를 사이드카 바이너리(PyInstaller 등)로 묶고 웹을 Tauri 창에서 연다. 결정 전 확인할 것:
 Claude Agent SDK 휠 크기(약 170MB, 번들 CLI 포함) 처리, aarch64/Windows 빌드, 자동 업데이트·서명. 결정은 ADR로 남긴다.
 
+## 라이선스
+
+배포물에는 LICENSE(Apache-2.0), NOTICE, THIRD_PARTY_NOTICES.md를 함께 넣는다(Apache-2.0 §4, MIT 고지 유지).
+
 ## 하지 않는 것
 
 원격 서버 배포, 외부 노출(리버스 프록시 포함). 루프백 바인딩만 지원한다.
