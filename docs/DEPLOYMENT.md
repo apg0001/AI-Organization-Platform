@@ -52,6 +52,14 @@ AI_ORG_WEB_DIST=apps/web/dist apps/server/.venv/bin/ai-org-server   # http://127
 - 네이티브 알림: 승인 요청, 작업 완료·실패(사용자 대화의 응답, 위임 하위 실행 제외), 사용량 임계치.
 - Linux 트레이는 AppIndicator(StatusNotifier) 지원이 필요하다. GNOME은 'AppIndicator' 확장을 켠다.
 
+### 검증 상태(2026-11-25)
+
+- CI: Linux x64·arm64, macOS(Apple Silicon), Windows x64 빌드 성공. 모든 OS에서 백엔드 스모크(시작 2~3초, 웹·요약 API, 앱 종료 시 정상 종료),
+  Linux 가상 화면에서 앱 실행 스모크(앱 → 내장 백엔드 응답 → 앱 종료 시 백엔드도 종료).
+- Raspberry Pi(aarch64)에서 CI가 만든 AppImage를 가상 화면으로 실행해 창에 첫 화면(계정 만들기)이 뜨는 것을 확인.
+- 세션 D-Bus가 없는 가상 화면에서는 앱 시작 후 백엔드 응답까지 약 33초 걸렸다(사이드카 단독은 2~3초 — GTK 초기화의 D-Bus 대기로 보임).
+  일반 데스크톱 환경의 시작 시간과 macOS·Windows의 실제 창·트레이·알림은 아직 눈으로 확인하지 않았다.
+
 ### 직접 빌드
 
 ```bash
