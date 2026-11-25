@@ -135,5 +135,5 @@ cd ../.. && npm run typecheck && npm test && npm run build
 
 ## 라이선스
 
-**미정(TBD)** — 소유자가 배포 방향을 정한 뒤 LICENSE를 추가한다. 포함된 제3자 코드·에셋의 라이선스는
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[Apache License 2.0](LICENSE). 저작권·고지는 [NOTICE](NOTICE). 포함된 제3자 코드·에셋(Agent Office MIT, Kenney CC0, Galmuri OFL 등)의
+라이선스는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

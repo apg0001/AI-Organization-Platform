@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+### 변경
+- 라이선스: Apache License 2.0 적용(LICENSE, NOTICE).
+
 ### 추가
 - 프로젝트 골격: FastAPI + SQLite 백엔드, React 19 + Vite + Tailwind v4 웹, 로컬 전용 보안 미들웨어.
 - 조직 관리: 조직·부서·에이전트·협업 관계 CRUD, 순환 보고 방지, CEO 1명 규칙.
