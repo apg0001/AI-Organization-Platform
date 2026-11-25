@@ -1,0 +1,217 @@
+{
+  "template_id": "marketing",
+  "version": "1.0.0",
+  "name": "마케팅 조직",
+  "description": "시장 분석·콘텐츠 기획·카피·디자인·SNS 운영·성과 분석을 나누는 조직",
+  "category": "마케팅",
+  "target_users": [
+    "마케터",
+    "크리에이터",
+    "소규모 사업자"
+  ],
+  "org_size": "디렉터 + 6명",
+  "spec": {
+    "name": "마케팅 조직",
+    "mission": "제품의 가치를 적합한 고객에게 전달하고 성과를 측정한다.",
+    "base_instructions": "과장 광고와 확인되지 않은 수치를 쓰지 않는다.",
+    "departments": [
+      {
+        "key": "insight",
+        "name": "전략팀",
+        "description": "시장 분석과 성과 측정",
+        "color": "dept-1"
+      },
+      {
+        "key": "content",
+        "name": "콘텐츠팀",
+        "description": "기획·카피·디자인",
+        "color": "dept-2"
+      },
+      {
+        "key": "channel",
+        "name": "채널팀",
+        "description": "SNS 운영",
+        "color": "dept-3"
+      }
+    ],
+    "agents": [
+      {
+        "key": "ceo",
+        "name": "마케팅 디렉터",
+        "title": "Marketing Director",
+        "department": null,
+        "role": "사용자의 요청을 분석해 담당자에게 분배하고, 결과를 검토·취합해 사용자에게 보고한다. 직접 처리할 수 있는 일은 직접 한다.",
+        "responsibilities": [],
+        "expertise": [],
+        "reports_to": null,
+        "is_lead": true,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": "",
+        "permissions": {
+          "can_delegate": true
+        }
+      },
+      {
+        "key": "market",
+        "name": "시장 조사",
+        "title": "Market Researcher",
+        "department": "insight",
+        "role": "시장과 경쟁사를 분석한다.",
+        "responsibilities": [
+          "경쟁사 분석",
+          "고객 분석"
+        ],
+        "expertise": [
+          "시장 조사"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [
+          "research"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "planner",
+        "name": "콘텐츠 기획",
+        "title": "Content Planner",
+        "department": "content",
+        "role": "콘텐츠 주제와 일정을 기획한다.",
+        "responsibilities": [
+          "콘텐츠 캘린더"
+        ],
+        "expertise": [
+          "기획"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "copy",
+        "name": "카피라이터",
+        "title": "Copywriter",
+        "department": "content",
+        "role": "광고·랜딩 문구를 쓴다.",
+        "responsibilities": [
+          "카피 작성"
+        ],
+        "expertise": [
+          "글쓰기"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "designer",
+        "name": "디자이너",
+        "title": "Designer",
+        "department": "content",
+        "role": "시각 자료 방향과 시안을 만든다.",
+        "responsibilities": [
+          "시안 제작"
+        ],
+        "expertise": [
+          "디자인"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [
+          "frontend-design"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "social",
+        "name": "SNS 매니저",
+        "title": "Social Media Manager",
+        "department": "channel",
+        "role": "채널별 게시와 반응을 관리한다.",
+        "responsibilities": [
+          "게시 계획",
+          "커뮤니티 관리"
+        ],
+        "expertise": [
+          "SNS"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "analyst",
+        "name": "성과 분석",
+        "title": "Performance Analyst",
+        "department": "insight",
+        "role": "캠페인 성과를 측정·보고한다.",
+        "responsibilities": [
+          "지표 분석",
+          "리포트"
+        ],
+        "expertise": [
+          "데이터 분석"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [
+          "xlsx"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      }
+    ],
+    "collaborations": [
+      {
+        "source": "market",
+        "target": "planner",
+        "kind": "handoff",
+        "label": "인사이트 전달"
+      },
+      {
+        "source": "planner",
+        "target": "copy",
+        "kind": "handoff",
+        "label": "기획안 전달"
+      },
+      {
+        "source": "copy",
+        "target": "designer",
+        "kind": "handoff",
+        "label": "카피 전달"
+      },
+      {
+        "source": "social",
+        "target": "analyst",
+        "kind": "handoff",
+        "label": "채널 데이터 전달"
+      }
+    ],
+    "workflows": [
+      {
+        "name": "캠페인",
+        "steps": [
+          "시장 분석",
+          "기획",
+          "카피·디자인",
+          "게시",
+          "성과 분석"
+        ]
+      }
+    ],
+    "recommended_skills": [
+      "research",
+      "xlsx"
+    ],
+    "recommended_mcp": []
+  }
+}
