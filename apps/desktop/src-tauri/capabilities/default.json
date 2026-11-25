@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "시작 화면(로컬 splash)용 최소 권한. 백엔드 화면(127.0.0.1)은 원격 주소라 Tauri IPC를 쓰지 않는다.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

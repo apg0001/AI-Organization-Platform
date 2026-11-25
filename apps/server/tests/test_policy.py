@@ -1,0 +1,114 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from ai_org.runtime.activity import classify, is_test_command
+from ai_org.schemas import AgentPermissions
+from ai_org.services import policy
+
+ROOT = [Path("/work/app")]
+
+
+def test_default_permissions_are_conservative() -> None:
+    perms = AgentPermissions()
+    assert "Bash" in policy.disallowed_tools(perms)
+    assert policy.decide(perms, "Bash", {"command": "ls"}, ROOT).action == "deny"
+    assert policy.decide(perms, "Read", {"file_path": "/work/app/a.py"}, ROOT).action == "allow"
+    assert policy.decide(perms, "Read", {"file_path": "/home/u/.ssh/id_rsa"}, ROOT).action == "deny"
+    assert policy.decide(perms, "Write", {"file_path": "../../etc/x"}, ROOT).action == "deny"
+    assert policy.decide(perms, "Write", {"file_path": "src/x.py"}, ROOT).action == "ask"
+
+
+def test_shell_requires_approval_even_for_read_only_commands() -> None:
+    perms = AgentPermissions(allow_shell=True, require_approval=["shell"])
+    assert policy.decide(perms, "Bash", {"command": "echo hi"}, ROOT).action == "ask"
+
+
+def test_delete_detection() -> None:
+    perms = AgentPermissions(allow_shell=True, require_approval=[])
+    assert policy.decide(perms, "Bash", {"command": "rm -rf build"}, ROOT).action == "deny"
+    perms = AgentPermissions(allow_shell=True, allow_file_delete=True, require_approval=["file_delete"])
+    assert policy.decide(perms, "Bash", {"command": "cd x && rm a"}, ROOT).action == "ask"
+    assert policy.decide(perms, "Bash", {"command": "git clean -fd"}, ROOT).group == "file_delete"
+
+
+def test_delegate_and_mcp() -> None:
+    assert policy.decide(AgentPermissions(), "Agent", {}, ROOT).action == "deny"
+    assert (
+        policy.decide(AgentPermissions(can_delegate=True, require_approval=[]), "Agent", {}, ROOT).action
+        == "allow"
+    )
+    assert policy.decide(AgentPermissions(), "mcp__github__create_issue", {}, ROOT).action == "ask"
+
+
+def test_activity_classification() -> None:
+    assert classify("Read", {}) == "reading"
+    assert classify("Edit", {}) == "coding"
+    assert classify("WebSearch", {}) == "browsing"
+    assert classify("TodoWrite", {}) == "planning"
+    assert classify("Bash", {"command": "cd apps/web && npm test"}) == "testing"
+    assert classify("Bash", {"command": "ls -la"}) == "unknown"
+    assert is_test_command("uv run pytest -q")
+    assert is_test_command("python -m pytest tests")
+    assert is_test_command("CI=1 npx vitest run")
+    assert not is_test_command("npm install")
+
+
+def test_shell_paths_outside_scope_require_approval() -> None:
+    perms = AgentPermissions(allow_shell=True, require_approval=[])
+    assert policy.decide(perms, "Bash", {"command": "npm test"}, ROOT).action == "allow"
+    assert policy.decide(perms, "Bash", {"command": "ls src && cat ./README.md"}, ROOT).action == "allow"
+    assert (
+        policy.decide(perms, "Bash", {"command": "/usr/bin/python3 -m pytest /work/app/tests"}, ROOT).action
+        == "allow"
+    )
+    assert policy.decide(perms, "Bash", {"command": "echo hi > /dev/null 2>&1"}, ROOT).action == "allow"
+    for cmd in (
+        "cat ~/.ssh/id_rsa",
+        "cp out.txt /etc/hosts",
+        "echo x >/tmp/leak",
+        "cd .. && ls",
+        "tar czf x.tgz ../../secret",
+        "curl --output=/home/u/x http://e",
+        "FOO=1 grep -r token /home",
+    ):
+        verdict = policy.decide(perms, "Bash", {"command": cmd}, ROOT)
+        assert verdict.action == "ask", cmd
+        assert "작업 폴더 밖" in verdict.reason
+
+
+def test_shell_disabled_still_denied_before_path_check() -> None:
+    assert policy.decide(AgentPermissions(), "Bash", {"command": "cat /etc/passwd"}, ROOT).action == "deny"
+
+
+def test_delete_outside_scope_asks_even_when_delete_allowed() -> None:
+    perms = AgentPermissions(allow_shell=True, allow_file_delete=True, require_approval=[])
+    assert policy.decide(perms, "Bash", {"command": "rm -rf build"}, ROOT).action == "allow"
+    assert policy.decide(perms, "Bash", {"command": "rm -rf ~/Documents"}, ROOT).action == "ask"
+
+
+def test_shell_path_false_positives_from_dogfooding(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    (root / "apps" / "server").mkdir(parents=True)
+    (root / "docs").mkdir()
+    roots = [root]
+    perms = AgentPermissions(allow_shell=True, require_approval=[])
+    # 검색어는 경로가 아니다.
+    assert policy.decide(perms, "Bash", {"command": 'grep -rn "/status" docs'}, roots).action == "allow"
+    assert policy.decide(perms, "Bash", {"command": "git grep -n /status"}, roots).action == "allow"
+    # 같은 명령 안의 cd를 따라 상대 경로 기준을 바꾼다.
+    assert (
+        policy.decide(
+            perms, "Bash", {"command": "cd apps/server && grep -rln status ../../docs"}, roots
+        ).action
+        == "allow"
+    )
+    # 그래도 범위 밖은 승인 요청.
+    assert (
+        policy.decide(perms, "Bash", {"command": "cd apps/server && cat ../../../secret"}, roots).action
+        == "ask"
+    )
+    assert policy.decide(perms, "Bash", {"command": "cd /etc && cat hostname"}, roots).action == "ask"
+    assert (
+        policy.decide(perms, "Bash", {"command": "grep x /home"}, roots).action == "ask"
+    )  # 실제로 있는 경로

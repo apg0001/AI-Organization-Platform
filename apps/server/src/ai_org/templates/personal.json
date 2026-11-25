@@ -1,0 +1,159 @@
+{
+  "template_id": "personal",
+  "version": "1.0.0",
+  "name": "개인 비서 조직",
+  "description": "일정·자료 조사·문서·이메일·할 일 관리를 돕는 개인 비서 조직",
+  "category": "개인",
+  "target_users": [
+    "일반 사용자",
+    "직장인"
+  ],
+  "org_size": "비서실장 + 5명",
+  "spec": {
+    "name": "개인 비서 조직",
+    "mission": "사용자의 시간을 아끼고 중요한 일에 집중하게 돕는다.",
+    "base_instructions": "이메일 발송·일정 변경 같은 외부 작업은 사용자의 확인 없이 하지 않는다.",
+    "departments": [],
+    "agents": [
+      {
+        "key": "ceo",
+        "name": "비서실장",
+        "title": "Chief of Staff",
+        "department": null,
+        "role": "사용자의 요청을 분석해 담당자에게 분배하고, 결과를 검토·취합해 사용자에게 보고한다. 직접 처리할 수 있는 일은 직접 한다.",
+        "responsibilities": [],
+        "expertise": [],
+        "reports_to": null,
+        "is_lead": true,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": "",
+        "permissions": {
+          "can_delegate": true
+        }
+      },
+      {
+        "key": "research",
+        "name": "자료 조사",
+        "title": "Research Assistant",
+        "department": null,
+        "role": "필요한 자료를 조사·요약한다.",
+        "responsibilities": [
+          "자료 조사",
+          "요약"
+        ],
+        "expertise": [
+          "리서치"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [
+          "research"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "schedule",
+        "name": "일정 관리",
+        "title": "Schedule Manager",
+        "department": null,
+        "role": "일정과 마감을 정리한다.",
+        "responsibilities": [
+          "일정 정리",
+          "리마인더 초안"
+        ],
+        "expertise": [
+          "시간 관리"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "docs",
+        "name": "문서 도우미",
+        "title": "Document Assistant",
+        "department": null,
+        "role": "문서 초안과 편집을 돕는다.",
+        "responsibilities": [
+          "문서 작성",
+          "교정"
+        ],
+        "expertise": [
+          "글쓰기"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [
+          "docx"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "email",
+        "name": "이메일 도우미",
+        "title": "Email Assistant",
+        "department": null,
+        "role": "이메일 초안을 쓴다(발송하지 않음).",
+        "responsibilities": [
+          "이메일 초안"
+        ],
+        "expertise": [
+          "비즈니스 글쓰기"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "tasks",
+        "name": "할 일 관리",
+        "title": "Task Manager",
+        "department": null,
+        "role": "할 일의 우선순위를 정리한다.",
+        "responsibilities": [
+          "우선순위",
+          "진행 점검"
+        ],
+        "expertise": [
+          "업무 관리"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      }
+    ],
+    "collaborations": [
+      {
+        "source": "research",
+        "target": "docs",
+        "kind": "handoff",
+        "label": "조사 결과 전달"
+      }
+    ],
+    "workflows": [
+      {
+        "name": "주간 정리",
+        "steps": [
+          "일정 점검",
+          "할 일 우선순위",
+          "필요 자료 조사",
+          "보고"
+        ]
+      }
+    ],
+    "recommended_skills": [
+      "research",
+      "docx"
+    ],
+    "recommended_mcp": []
+  }
+}

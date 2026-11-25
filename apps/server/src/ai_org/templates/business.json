@@ -1,0 +1,213 @@
+{
+  "template_id": "business",
+  "version": "1.0.0",
+  "name": "비즈니스 조직",
+  "description": "전략·재무·인사·영업·운영·고객 지원을 나누는 경영 조직",
+  "category": "비즈니스",
+  "target_users": [
+    "스타트업",
+    "1인 기업",
+    "소규모 기업"
+  ],
+  "org_size": "CEO + 6명",
+  "spec": {
+    "name": "비즈니스 조직",
+    "mission": "사업 목표를 세우고 근거 있는 경영 판단을 돕는다.",
+    "base_instructions": "재무 수치는 가정과 출처를 함께 적는다.",
+    "departments": [
+      {
+        "key": "strategy",
+        "name": "전략팀",
+        "description": "전략과 재무",
+        "color": "dept-1"
+      },
+      {
+        "key": "people",
+        "name": "인사팀",
+        "description": "인사",
+        "color": "dept-2"
+      },
+      {
+        "key": "revenue",
+        "name": "영업팀",
+        "description": "영업과 고객",
+        "color": "dept-3"
+      },
+      {
+        "key": "ops",
+        "name": "운영팀",
+        "description": "업무 프로세스",
+        "color": "dept-4"
+      }
+    ],
+    "agents": [
+      {
+        "key": "ceo",
+        "name": "CEO",
+        "title": "Chief Executive Officer",
+        "department": null,
+        "role": "사용자의 요청을 분석해 담당자에게 분배하고, 결과를 검토·취합해 사용자에게 보고한다. 직접 처리할 수 있는 일은 직접 한다.",
+        "responsibilities": [],
+        "expertise": [],
+        "reports_to": null,
+        "is_lead": true,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": "",
+        "permissions": {
+          "can_delegate": true
+        }
+      },
+      {
+        "key": "strategy",
+        "name": "전략 매니저",
+        "title": "Strategy Manager",
+        "department": "strategy",
+        "role": "사업 전략과 시장 기회를 분석한다.",
+        "responsibilities": [
+          "전략 수립",
+          "시장 조사"
+        ],
+        "expertise": [
+          "경영 전략"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [
+          "research"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "finance",
+        "name": "재무 분석가",
+        "title": "Finance Analyst",
+        "department": "strategy",
+        "role": "재무 모델과 손익을 분석한다.",
+        "responsibilities": [
+          "재무 모델",
+          "손익 분석"
+        ],
+        "expertise": [
+          "재무"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [
+          "xlsx"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "hr",
+        "name": "인사 매니저",
+        "title": "HR Manager",
+        "department": "people",
+        "role": "채용·평가·조직 문화를 지원한다.",
+        "responsibilities": [
+          "채용 계획",
+          "직무 기술서"
+        ],
+        "expertise": [
+          "인사"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "sales",
+        "name": "영업 매니저",
+        "title": "Sales Manager",
+        "department": "revenue",
+        "role": "영업 전략과 제안서를 준비한다.",
+        "responsibilities": [
+          "영업 전략",
+          "제안서"
+        ],
+        "expertise": [
+          "영업"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [
+          "docx"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "ops",
+        "name": "운영 매니저",
+        "title": "Operations Manager",
+        "department": "ops",
+        "role": "업무 프로세스를 설계·개선한다.",
+        "responsibilities": [
+          "프로세스 설계"
+        ],
+        "expertise": [
+          "운영"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "support",
+        "name": "고객 지원",
+        "title": "Customer Support",
+        "department": "revenue",
+        "role": "고객 문의 대응 가이드를 만든다.",
+        "responsibilities": [
+          "FAQ",
+          "응대 가이드"
+        ],
+        "expertise": [
+          "고객 지원"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      }
+    ],
+    "collaborations": [
+      {
+        "source": "strategy",
+        "target": "finance",
+        "kind": "review",
+        "label": "사업성 검토 요청"
+      },
+      {
+        "source": "sales",
+        "target": "support",
+        "kind": "handoff",
+        "label": "고객 정보 전달"
+      }
+    ],
+    "workflows": [
+      {
+        "name": "분기 보고",
+        "steps": [
+          "지표 수집",
+          "재무 분석",
+          "전략 검토",
+          "경영 보고서"
+        ]
+      }
+    ],
+    "recommended_skills": [
+      "research",
+      "xlsx",
+      "docx"
+    ],
+    "recommended_mcp": []
+  }
+}

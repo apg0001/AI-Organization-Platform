@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0e1015" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>AI Organization</title>
+    <script>
+      // 첫 그리기 전에 저장된 테마를 적용(깜빡임 방지). 규칙은 src/lib/theme.ts와 같다.
+      (function () {
+        var c = localStorage.getItem("ai-org.theme") || "dark";
+        if (c === "system") {
+          c = matchMedia("(prefers-contrast: more)").matches ? "contrast" : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        }
+        if (c !== "light" && c !== "contrast") c = "dark";
+        var r = document.documentElement;
+        r.dataset.theme = c;
+        r.classList.toggle("dark", c !== "light");
+        r.style.colorScheme = c === "light" ? "light" : "dark";
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

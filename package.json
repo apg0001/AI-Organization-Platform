@@ -1,0 +1,20 @@
+{
+  "name": "ai-org-platform",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace @ai-org/web run dev",
+    "build": "npm --workspace @ai-org/web run build",
+    "test": "npm --workspace @ai-org/web run test",
+    "typecheck": "npm --workspace @ai-org/web run typecheck",
+    "e2e": "npm --workspace @ai-org/web run e2e"
+  },
+  "engines": {
+    "node": ">=24",
+    "npm": ">=11"
+  }
+}
