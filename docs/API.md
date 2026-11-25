@@ -99,7 +99,7 @@
 | `run.denied` | conversation_id, message_id, agent_id, tool, reason | 정책 거부 |
 | `message.completed` | conversation_id, message | 확정된 메시지 |
 | `agent.status` | organization_id, agent_id, status, detail | 상태 변경(detail: 활동 분류 또는 도구) |
-| `approval.requested` | organization_id, conversation_id, approval{id, agent_id, agent_name, tool, target, group, message_id} | 승인 요청 |
+| `approval.requested` | organization_id, conversation_id, approval{id, agent_id, agent_name, tool, target, group, reason, message_id} | 승인 요청(reason: 범위 밖 경로 등 승인 사유) |
 | `approval.resolved` | organization_id, approval_id, status | 승인 처리 |
 | `task.updated` | organization_id, task_id, status | 작업 상태 |
 | `design.updated` | design_id, status, busy | 설계 초안 변경 |

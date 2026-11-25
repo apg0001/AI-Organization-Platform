@@ -517,6 +517,7 @@ class RunManager:
                     "tool": tool,
                     "target": target,
                     "group": verdict.group,
+                    "reason": verdict.reason,
                     "conversation_id": run.conversation_id,
                     "message_id": run.message_id,
                 },
@@ -539,6 +540,7 @@ class RunManager:
                 "tool": tool,
                 "target": target,
                 "group": verdict.group,
+                "reason": verdict.reason,
                 "message_id": run.message_id,
             },
         )

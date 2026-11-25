@@ -52,3 +52,36 @@ def test_activity_classification() -> None:
     assert is_test_command("python -m pytest tests")
     assert is_test_command("CI=1 npx vitest run")
     assert not is_test_command("npm install")
+
+
+def test_shell_paths_outside_scope_require_approval() -> None:
+    perms = AgentPermissions(allow_shell=True, require_approval=[])
+    assert policy.decide(perms, "Bash", {"command": "npm test"}, ROOT).action == "allow"
+    assert policy.decide(perms, "Bash", {"command": "ls src && cat ./README.md"}, ROOT).action == "allow"
+    assert (
+        policy.decide(perms, "Bash", {"command": "/usr/bin/python3 -m pytest /work/app/tests"}, ROOT).action
+        == "allow"
+    )
+    assert policy.decide(perms, "Bash", {"command": "echo hi > /dev/null 2>&1"}, ROOT).action == "allow"
+    for cmd in (
+        "cat ~/.ssh/id_rsa",
+        "cp out.txt /etc/hosts",
+        "echo x >/tmp/leak",
+        "cd .. && ls",
+        "tar czf x.tgz ../../secret",
+        "curl --output=/home/u/x http://e",
+        "FOO=1 grep -r token /home",
+    ):
+        verdict = policy.decide(perms, "Bash", {"command": cmd}, ROOT)
+        assert verdict.action == "ask", cmd
+        assert "작업 폴더 밖" in verdict.reason
+
+
+def test_shell_disabled_still_denied_before_path_check() -> None:
+    assert policy.decide(AgentPermissions(), "Bash", {"command": "cat /etc/passwd"}, ROOT).action == "deny"
+
+
+def test_delete_outside_scope_asks_even_when_delete_allowed() -> None:
+    perms = AgentPermissions(allow_shell=True, allow_file_delete=True, require_approval=[])
+    assert policy.decide(perms, "Bash", {"command": "rm -rf build"}, ROOT).action == "allow"
+    assert policy.decide(perms, "Bash", {"command": "rm -rf ~/Documents"}, ROOT).action == "ask"
