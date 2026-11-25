@@ -17,7 +17,8 @@ export default defineConfig({
   workers: 1,
   timeout: 60_000,
   expect: { timeout: 15_000 },
-  retries: process.env.CI ? 1 : 0,
+  // 앞 단계 결과에 이어지는 여정이라 재시도하면 첫 단계부터 상태가 어긋난다. 재시도하지 않는다.
+  retries: 0,
   reporter: process.env.CI ? [["github"], ["list"]] : "list",
   use: {
     baseURL: "http://127.0.0.1:3100",

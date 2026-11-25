@@ -21,6 +21,16 @@ async function login(page: Page) {
   await expect(page.getByRole("navigation", { name: "주 메뉴" })).toBeVisible();
 }
 
+/** 조직도는 처음 그릴 때 화면 맞춤 애니메이션이 있어, 노드 클릭 → 설정 서랍이 열릴 때까지 재시도한다. */
+async function openNode(page: Page, name: string) {
+  const node = page.locator(".react-flow__node").filter({ hasText: name });
+  const drawer = page.getByRole("complementary", { name: `${name} 설정` });
+  await expect(async () => {
+    await node.click();
+    await expect(drawer).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+}
+
 test.beforeEach(({ page }) => {
   page.on("console", (msg) => {
     // 401(로그인 전·틀린 비밀번호)은 의도된 응답이라 브라우저가 남기는 리소스 오류 로그에서 제외한다.
@@ -52,8 +62,7 @@ test("템플릿 미리보기 → 설계 → 검토 → 조직 생성", async ({ 
   await dialog.getByRole("button", { name: "이 템플릿으로 설계 시작" }).click();
   await expect(page.getByRole("heading", { name: "소프트웨어 개발 조직" })).toBeVisible();
   // 조직도 노드 선택 → 설정 서랍
-  await page.locator(".react-flow__node").filter({ hasText: "QA 엔지니어" }).click();
-  await expect(page.getByRole("complementary", { name: "QA 엔지니어 설정" })).toBeVisible();
+  await openNode(page, "QA 엔지니어");
   await page.getByRole("button", { name: "닫기" }).first().click();
   await page.getByRole("button", { name: "검토 후 조직 생성" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "이 구성으로 조직 생성" }).click();
@@ -71,7 +80,7 @@ test("설계 담당자와 대화: 단일 명세 갱신과 권한 제안 수락",
   const node = page.locator(".react-flow__node").filter({ hasText: "E2E 분석가" });
   await expect(node).toBeVisible();
   await expect(node.getByText("권한 제안")).toBeVisible();
-  await node.click();
+  await openNode(page, "E2E 분석가");
   await expect(page.getByText("AI가 권한 확대를 제안했습니다")).toBeVisible();
   await page.getByRole("button", { name: "제안 수락" }).click();
   await expect(page.getByText("AI가 권한 확대를 제안했습니다")).toBeHidden();
