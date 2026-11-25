@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 const field =
   "w-full min-w-0 rounded-md border border-border-strong bg-surface-2 px-2.5 text-sm text-fg placeholder:text-faint " +
-  "transition-[border-color] duration-[120ms] hover:border-[#454c5e] focus-visible:border-ring focus-visible:outline-none " +
+  "transition-[border-color] duration-[120ms] hover:border-input-hover focus-visible:border-ring focus-visible:outline-none " +
   "disabled:opacity-50 aria-[invalid=true]:border-danger";
 
 export function Input({ className, ...props }: ComponentProps<"input">) {

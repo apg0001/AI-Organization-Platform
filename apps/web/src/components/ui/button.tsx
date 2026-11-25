@@ -21,7 +21,7 @@ export const buttonVariants = cva(
         secondary: "border border-border-strong bg-surface-2 text-fg hover:bg-surface-3",
         ghost: "text-muted hover:bg-surface-3 hover:text-fg",
         danger: "bg-danger-solid text-white hover:brightness-110",
-        warning: "bg-warning text-[#1a1306] hover:brightness-105",
+        warning: "bg-warning text-on-warning hover:brightness-105",
       },
       size: {
         sm: "h-7 px-2.5 text-xs",

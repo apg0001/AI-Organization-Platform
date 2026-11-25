@@ -361,7 +361,7 @@ function SuggestionNotice({
   if (dropped.length) diffs.push(`승인 생략: ${dropped.map((g) => APPROVAL_LABELS[g]).join(", ")}`);
   if (suggestion.permission_mode !== current.permission_mode) diffs.push(`모드 ${suggestion.permission_mode}`);
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-[#5c4a22] bg-[#2a2213] px-3 py-2.5 text-sm">
+    <div className="flex flex-col gap-2 rounded-md border border-warning-border bg-warning-surface px-3 py-2.5 text-sm">
       <span className="flex items-center gap-1.5 font-medium text-warning">
         <AlertTriangle className="size-4" aria-hidden /> AI가 권한 확대를 제안했습니다
       </span>

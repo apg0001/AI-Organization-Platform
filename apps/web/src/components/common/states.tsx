@@ -105,7 +105,7 @@ export function LoadingState({ label = "불러오는 중…", className }: { lab
 export function ErrorState({ error, retry, className }: { error: unknown; retry?: () => void; className?: string }) {
   const message = error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.";
   return (
-    <div className={cn("flex items-start gap-2 rounded-md border border-[#5a2a2a] bg-[#2a1517] px-3 py-2.5 text-sm", className)} role="alert">
+    <div className={cn("flex items-start gap-2 rounded-md border border-danger-border bg-danger-surface px-3 py-2.5 text-sm", className)} role="alert">
       <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden />
       <div className="flex flex-col gap-1">
         <span className="text-fg">{message}</span>

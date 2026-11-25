@@ -45,7 +45,8 @@
 | AUTH-1 | 로컬 단일 사용자 보호(루프백·Host·Origin 검사) | Tested |
 | AUTH-2 | 로컬 계정·로그인·로그아웃·세션·비밀번호 변경·계정 초기화 | Tested |
 | AUTH-3 | 다중 사용자·사용자별 조직 접근·OAuth | Planned(설계: SECURITY.md §7) |
-| TUT-1 | 튜토리얼 | Planned(Phase 8) |
+| TUT-1 | 시작 가이드 8단계(데이터·화면 방문으로 자동 완료, 숨기기·다시 열기) | Tested(E2E) |
+| UI-3 | 테마: 다크·라이트·고대비·시스템 설정, 계정에 저장 | Tested(E2E) |
 
 ## 3. 비기능 요구사항
 

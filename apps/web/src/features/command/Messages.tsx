@@ -31,7 +31,7 @@ function CodeBlock(props: ComponentProps<"pre">) {
   };
   return (
     <div className="group relative">
-      <pre {...props} className="overflow-x-auto rounded-md border border-border bg-[#0b0d11] px-3.5 py-3 font-mono text-xs leading-relaxed" />
+      <pre {...props} className="overflow-x-auto rounded-md border border-border bg-code-bg px-3.5 py-3 font-mono text-xs leading-relaxed" />
       <button
         type="button"
         onClick={copy}
