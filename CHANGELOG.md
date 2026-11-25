@@ -5,6 +5,7 @@
 ## [Unreleased]
 
 ### 추가
+- 오케스트레이션: 위임 권한이 있는 에이전트의 `delegate_task`·`request_review` 도구(하위·협업 대상만, 순환·깊이 제한), 같은 대화에서 위임 실행·보고 취합, 작업 트리, 실행 패널 위임 트리 표시.
 - 기능 관리: 허용된 MCP 서버·Plugins를 에이전트 실행에 연결, `claude mcp list` 기반 MCP 연결 점검, MCP 도구 승인 묶음(`mcp`).
 - 개발: 저장소 `.mcp.json`에 chrome-devtools MCP(헤드리스·임시 프로필·사용 통계 끔) — Claude Code로 화면을 검증할 때 사용.
 

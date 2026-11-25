@@ -85,6 +85,7 @@ export function useLiveConnection(): void {
           void queryClient.invalidateQueries({ queryKey: ["workspace"] });
           break;
         case "task.updated":
+        case "task.delegated":
           void queryClient.invalidateQueries({ queryKey: ["tasks"] });
           break;
         case "design.updated":

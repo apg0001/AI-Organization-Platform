@@ -22,6 +22,21 @@ RuntimeEventType = Literal[
 
 
 @dataclass(frozen=True)
+class OrgTool:
+    """플랫폼이 에이전트에게 주는 도구(위임·검토 요청 등).
+
+    런타임이 자기 방식(Claude Code는 인프로세스 MCP)으로 노출한다.
+
+    input_schema: {인자 이름: 파이썬 타입}. handler는 인자 dict를 받아 에이전트에게 돌려줄 글을 만든다.
+    """
+
+    name: str
+    description: str
+    input_schema: dict[str, type]
+    handler: Callable[[dict[str, Any]], Awaitable[str]]
+
+
+@dataclass(frozen=True)
 class RunRequest:
     """에이전트 한 번의 실행 요청. 조직·정책에서 계산한 값만 담는다(런타임은 정책을 해석하지 않는다)."""
 
@@ -48,6 +63,7 @@ class RunRequest:
     # 허용된 MCP 서버 설정({이름: 설정}). strict 모드라 여기 없는 서버는 붙지 않는다.
     mcp_servers: dict[str, Any] = field(default_factory=dict)
     plugin_paths: tuple[str, ...] = ()
+    org_tools: tuple[OrgTool, ...] = ()
 
 
 @dataclass(frozen=True)

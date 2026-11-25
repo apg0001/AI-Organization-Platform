@@ -102,7 +102,7 @@ def group_of(tool: str, tool_input: dict[str, Any]) -> Group | None:
         return "file_write"
     if tool in NETWORK_TOOLS:
         return "network"
-    if tool in ("Agent", "Task"):
+    if tool in ("Agent", "Task") or tool.startswith("mcp__org__"):
         return "delegate"
     if tool.startswith("mcp__"):
         return "mcp"

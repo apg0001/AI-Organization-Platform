@@ -137,6 +137,7 @@ export interface Task {
   id: string;
   organization_id: string;
   project_id: string | null;
+  parent_id: string | null;
   assignee_id: string | null;
   title: string;
   status: string;
@@ -267,6 +268,7 @@ export interface ChatMessage {
     attachments?: AttachmentInfo[];
     command?: string;
     result?: CommandResult;
+    delegated_by?: string;
   };
   activity: ActivityEntry[];
   status: "pending" | "streaming" | "done" | "error" | "interrupted";

@@ -103,5 +103,6 @@
 | `approval.requested` | organization_id, conversation_id, approval{id, agent_id, agent_name, tool, target, group, reason, message_id} | 승인 요청(reason: 범위 밖 경로 등 승인 사유) |
 | `approval.resolved` | organization_id, approval_id, status | 승인 처리 |
 | `task.updated` | organization_id, task_id, status | 작업 상태 |
+| `task.delegated` | organization_id, conversation_id, from_agent_id, to_agent_id, task_id, kind(delegated·review) | 에이전트 간 위임·검토 요청 |
 | `design.updated` | design_id, status, busy | 설계 초안 변경 |
 | `organization.updated` | organization_id | 설계 적용 |
