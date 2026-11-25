@@ -10,7 +10,7 @@ import { AgentAvatar } from "@/components/agent/AgentAvatar";
 import type { Agent } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-import type { DockItem } from "./liveDock";
+import type { DockItem } from "./dockState";
 
 export interface Unseen {
   messageId: string;
