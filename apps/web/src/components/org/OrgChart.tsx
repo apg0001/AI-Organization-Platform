@@ -307,10 +307,10 @@ function OrgChartInner({ spec, statuses, selected, onSelect, onChange, layoutVer
         maxZoom={1.75}
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#262b37" />
+        <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
         <Controls showInteractive={false} position="bottom-left" />
         {spec.agents.length > 8 ? (
-          <MiniMap pannable zoomable position="bottom-right" nodeColor="#353b4a" maskColor="rgb(14 16 21 / 0.7)" />
+          <MiniMap pannable zoomable position="bottom-right" />
         ) : null}
       </ReactFlow>
     </div>

@@ -546,7 +546,7 @@ function ReviewDialog({
           ) : null}
         </div>
         {runningWarning ? (
-          <div className="mt-4 rounded-md border border-[#5c4a22] bg-[#2a2213] px-3 py-2.5 text-sm">
+          <div className="mt-4 rounded-md border border-warning-border bg-warning-surface px-3 py-2.5 text-sm">
             <p className="text-warning">{runningWarning}</p>
             <Button className="mt-2" size="sm" variant="warning" onClick={() => apply.mutate(true)} disabled={apply.isPending}>
               확인하고 적용

@@ -11,6 +11,7 @@ import { ErrorState, LoadingState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/form";
 import { type AuthStatus, type AuthUser, UNAUTHORIZED_EVENT, api } from "@/lib/api";
+import { getTheme, isTheme, setTheme } from "@/lib/theme";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -35,6 +36,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
   }, [queryClient]);
+
+  // 로그인한 계정에 저장된 테마가 있으면 이 브라우저에도 적용한다(다른 기기에서 고른 테마를 따라감).
+  const savedTheme = status.data?.user?.settings.theme;
+  useEffect(() => {
+    if (isTheme(savedTheme) && savedTheme !== getTheme()) setTheme(savedTheme);
+  }, [savedTheme]);
 
   if (status.isLoading) return <LoadingState className="p-6" />;
   if (status.error || !status.data) return <ErrorState className="m-6" error={status.error} retry={() => void status.refetch()} />;

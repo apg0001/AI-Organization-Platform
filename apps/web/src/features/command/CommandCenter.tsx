@@ -627,7 +627,7 @@ function PendingApprovalBanner({ conversationId }: { conversationId: string }) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-1.5 px-4 pb-2" role="alert">
       {open.map((a) => (
-        <div key={a.id} className="flex items-center gap-3 rounded-md border border-[#5c4a22] bg-[#2a2213] px-3 py-2">
+        <div key={a.id} className="flex items-center gap-3 rounded-md border border-warning-border bg-warning-surface px-3 py-2">
           <Hand className="size-4 shrink-0 text-warning" aria-hidden />
           <span className="min-w-0 flex-1 text-sm">
             <span className="font-medium">{a.agent_name}</span>이(가) <span className="font-medium">{a.tool}</span> 실행 승인을 요청합니다
@@ -673,7 +673,7 @@ function ExecutionPanel({ orgId, agents }: { orgId: string; agents: Agent[]; con
       <PanelSection title={`승인 대기 ${approvals.data?.length ?? 0}`} open={sections.approvals} onToggle={() => toggle("approvals")}>
         {(approvals.data ?? []).length === 0 ? <p className="text-xs text-faint">없음</p> : null}
         {(approvals.data ?? []).map((a) => (
-          <div key={a.id} className="flex flex-col gap-1.5 rounded-md border border-[#5c4a22] bg-[#2a2213] px-2.5 py-2">
+          <div key={a.id} className="flex flex-col gap-1.5 rounded-md border border-warning-border bg-warning-surface px-2.5 py-2">
             <span className="text-xs">
               <span className="font-medium">{name(a.agent_id)}</span>
               <span className="text-faint"> · {timeAgo(a.created_at)}</span>

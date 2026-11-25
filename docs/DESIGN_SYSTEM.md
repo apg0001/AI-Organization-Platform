@@ -83,7 +83,22 @@ lucide-react, 16px(컨트롤 안), 14px(메타), 선 굵기 기본값. 이모지
 
 ## 8. 테마
 
-다크가 기본이자 유일한 테마다(`color-scheme: dark`, `theme-color` #0e1015). 라이트 테마는 Planned — 같은 토큰 이름에 값만 바꾸도록 설계했다.
+테마 4종: **다크**(기본, 위 표의 값), **라이트**, **고대비**, **시스템 설정**(OS의 라이트·다크·대비 높임 설정을 따름).
+`globals.css`의 `:root[data-theme="light"|"contrast"]`가 같은 토큰 이름에 값만 다시 정한다(자동 반전이 아니라 면마다 고른 값).
+선택은 화면 왼쪽 아래 `화면 설정` 메뉴 → localStorage(`ai-org.theme`) + 로그인한 경우 계정 설정(`settings.theme`)에 저장한다.
+`index.html`의 인라인 스크립트가 첫 그리기 전에 적용해 깜빡임이 없다.
+
+| 토큰 | 라이트 | 고대비 |
+|---|---|---|
+| `--bg` / `--surface-1` / `--surface-3` | #f6f7f9 / #ffffff / #eceef3 | #000000 / #0a0a0a / #262626 |
+| `--text` / `--text-muted` / `--text-faint` | #171a21(16.2:1) / #4d5465(7.1:1) / #636a7b(5.0:1) | #ffffff / #e0e0e0 / #c2c2c2(모두 7:1 이상) |
+| `--primary` / `--primary-text` | #3d55d9(흰 글자 6.0:1) / #3249c4(6.8:1) | #3b55f0 / #b3beff |
+| `--success` / `--warning` / `--danger` | #1b8150 / #9a6200 / #c62f2f(모두 4.5:1 이상) | #5fe0a0 / #ffc861 / #ff8f8f |
+| `--ring` | #3d55d9 | #ffd84d(노랑, 3px) |
+
+파생 토큰(모든 테마): `--on-warning`(경고 배경 위 글자), `--warning-surface`·`--warning-border`(승인 상자), `--danger-surface`·`--danger-border`(오류 상자),
+`--code-bg`·`--code-*`(코드 블록·하이라이트), `--input-hover`, `--scrim`(대화상자 가림막), `--selection`, `--chart-1`(차트 선).
+컴포넌트에 `#hex`를 쓰지 않는다. 예외: 사무실 장면(Phaser 캔버스)은 '밤의 사무실' 그림이라 테마와 관계없이 같은 색을 쓴다.
 
 ## 9. 브라우저 표면
 

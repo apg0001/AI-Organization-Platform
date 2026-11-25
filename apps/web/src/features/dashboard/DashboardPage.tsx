@@ -6,6 +6,7 @@ import { AgentStatus, EmptyState, ErrorState, LoadingState, PageHeader, Section 
 import { Button } from "@/components/ui/button";
 import { useCurrentOrg, useWorkspace } from "@/lib/queries";
 import { timeAgo } from "@/lib/utils";
+import { StartGuide } from "@/features/guide/StartGuide";
 
 /**
  * 워크스페이스 대시보드. 우선순위: ① 나를 기다리는 것(승인) ② 지금 일하는 에이전트 ③ 조직·프로젝트 ④ 최근 활동.
@@ -22,7 +23,8 @@ export function DashboardPage() {
     return (
       <div className="flex-1 overflow-y-auto">
         <PageHeader title="AI 조직을 만들어 시작하세요" />
-        <div className="px-6">
+        <div className="flex flex-col gap-6 px-6">
+          <StartGuide />
           <EmptyState
             icon={<Sparkles />}
             title="아직 조직이 없습니다"
@@ -43,13 +45,16 @@ export function DashboardPage() {
   return (
     <div className="flex-1 overflow-y-auto">
       <PageHeader title="대시보드" description="조직과 에이전트가 지금 무엇을 하고 있는지 봅니다." />
+      <div className="px-6 pb-6 empty:hidden">
+        <StartGuide />
+      </div>
       <div className="grid gap-8 px-6 pb-10 xl:grid-cols-[1.4fr_1fr]">
         <div className="flex flex-col gap-8">
           {pending_approvals.length > 0 ? (
             <Section title={`승인 대기 ${pending_approvals.length}건`}>
               <ul className="flex flex-col gap-1">
                 {pending_approvals.map((a) => (
-                  <li key={a.id} className="flex items-center gap-3 rounded-md border border-[#5c4a22] bg-[#2a2213] px-3 py-2 text-sm">
+                  <li key={a.id} className="flex items-center gap-3 rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-sm">
                     <Hand className="size-4 shrink-0 text-warning" aria-hidden />
                     <span className="min-w-0 flex-1 truncate font-mono text-xs">{a.summary}</span>
                     <span className="text-xs text-faint">{timeAgo(a.created_at)}</span>

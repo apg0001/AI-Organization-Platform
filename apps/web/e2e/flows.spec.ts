@@ -13,7 +13,10 @@ const consoleErrors: string[] = [];
 async function login(page: Page) {
   await page.goto("/");
   const loginButton = page.getByRole("button", { name: "로그인" });
-  if (await loginButton.isVisible().catch(() => false)) {
+  const nav = page.getByRole("navigation", { name: "주 메뉴" });
+  // 인증 상태를 불러오는 동안에는 둘 다 없다. 로그인 화면이나 앱 중 하나가 나타날 때까지 기다린다.
+  await expect(loginButton.or(nav)).toBeVisible();
+  if (await loginButton.isVisible()) {
     await page.getByLabel("아이디").fill(USER.username);
     await page.getByLabel("비밀번호").fill(USER.password);
     await loginButton.click();
@@ -94,7 +97,7 @@ test("설계 담당자와 대화: 단일 명세 갱신과 권한 제안 수락",
 
 test("커맨드 센터: 스트리밍 응답·명령·멘션 자동완성·승인·위임", async ({ page }) => {
   await login(page);
-  await page.getByRole("link", { name: "커맨드 센터" }).click();
+  await page.getByRole("link", { name: "커맨드 센터", exact: true }).click();
   await page.getByRole("button", { name: "CEO에게 업무 지시" }).click();
   const input = page.getByLabel("메시지");
 
@@ -134,24 +137,24 @@ test("프로젝트 등록과 기능 관리·사무실 화면", async ({ page }) 
   const root = mkdtempSync(join(tmpdir(), "ai-org-e2e-code-"));
   mkdirSync(join(root, "sample-app"));
   writeFileSync(join(root, "sample-app", "package.json"), "{}");
-  await page.getByRole("link", { name: "프로젝트" }).click();
+  await page.getByRole("link", { name: "프로젝트", exact: true }).click();
   await page.getByRole("button", { name: "탐색 경로 추가" }).click();
   await page.getByLabel("절대 경로").fill(root);
   await page.getByRole("dialog").getByRole("button", { name: "추가" }).click();
   await page.getByRole("button", { name: "등록" }).first().click();
   await expect(page.getByRole("button", { name: "sample-app 등록 해제(파일은 지우지 않음)" })).toBeVisible();
 
-  await page.getByRole("link", { name: "기능 관리" }).click();
+  await page.getByRole("link", { name: "기능 관리", exact: true }).click();
   await expect(page.getByRole("tab", { name: /Skills/ })).toBeVisible();
   await page.getByRole("tab", { name: /MCP 서버/ }).click();
   await expect(page.getByRole("button", { name: "연결 점검" })).toBeVisible();
 
-  await page.getByRole("link", { name: "사용량" }).click();
+  await page.getByRole("link", { name: "사용량", exact: true }).click();
   await expect(page.getByRole("heading", { name: "사용량" })).toBeVisible();
   await expect(page.getByText("꺼져 있습니다.")).toBeVisible(); // Claude 조회는 기본 꺼짐
   await expect(page.getByRole("switch", { name: "Claude 사용량 조회" })).not.toBeChecked();
 
-  await page.getByRole("link", { name: "사무실" }).click();
+  await page.getByRole("link", { name: "사무실", exact: true }).click();
   await expect(page.locator("canvas")).toBeVisible();
 });
 
@@ -165,5 +168,43 @@ test("로그아웃 후 다시 로그인", async ({ page }) => {
   await page.getByRole("button", { name: "로그인" }).click();
   await expect(page.getByRole("alert")).toContainText("올바르지 않습니다");
   await login(page);
+  expect(consoleErrors, consoleErrors.join("\n")).toEqual([]);
+});
+
+test("테마 바꾸기와 시작 가이드", async ({ page }) => {
+  await login(page);
+  const guide = page.getByRole("region", { name: "시작 가이드" });
+  await expect(guide).toBeVisible();
+  // 데이터 단계(조직·프로젝트·대화·업무)는 앞 테스트에서 만든 데이터로 완료. 방문 단계는 새 브라우저라 아직 남음.
+  await expect(guide.getByText("4/8 완료")).toBeVisible();
+  for (const [name, path] of [
+    ["조직", "/organization"],
+    ["기능 관리", "/capabilities"],
+    ["사무실", "/office"],
+    ["사용량", "/usage"],
+  ]) {
+    const link = page.getByRole("link", { name, exact: true });
+    await link.click();
+    // 라우터 전환은 지연 로딩 화면이 준비돼야 확정된다(그 전에는 이전 화면 유지). 메뉴 활성 표시로 확정을 기다린다.
+    await expect(link).toHaveAttribute("aria-current", "page");
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+  }
+  await page.getByRole("link", { name: "대시보드", exact: true }).click();
+  await expect(guide.getByText("모든 단계를 마쳤습니다", { exact: false })).toBeVisible();
+
+  await page.getByRole("button", { name: "화면 설정" }).click();
+  await page.getByRole("menuitemradio", { name: "라이트" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.getByRole("button", { name: "화면 설정" }).click();
+  await page.getByRole("menuitemradio", { name: "고대비" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "contrast");
+
+  await guide.getByRole("button", { name: "시작 가이드 숨기기" }).click();
+  await expect(guide).toBeHidden();
+  await page.getByRole("button", { name: "화면 설정" }).click();
+  await page.getByRole("menuitem", { name: "시작 가이드 보기" }).click();
+  await expect(page.getByRole("region", { name: "시작 가이드" })).toBeVisible();
   expect(consoleErrors, consoleErrors.join("\n")).toEqual([]);
 });

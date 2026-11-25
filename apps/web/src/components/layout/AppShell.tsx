@@ -1,6 +1,10 @@
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Blocks,
   Building2,
+  Check,
+  CircleHelp,
+  Palette,
   ChevronsUpDown,
   FolderGit2,
   Gauge,
@@ -13,12 +17,15 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
-import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router";
+import { useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 
 import { Dialog, Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/overlay";
 import { AccountDialog } from "@/features/auth/AccountDialog";
 import { useAuth } from "@/features/auth/AuthGate";
+import { markVisited, setGuideHidden } from "@/features/guide/guide";
+import { api } from "@/lib/api";
+import { THEMES, type ThemeChoice, setTheme, useTheme } from "@/lib/theme";
 import { useLiveConnected } from "@/lib/live";
 import { UsageMeter } from "@/features/usage/UsagePage";
 import { useApprovals, useCurrentOrg, useOrganizations, useSystemInfo, useUsage } from "@/lib/queries";
@@ -35,6 +42,8 @@ const NAV = [
 ];
 
 export function AppShell() {
+  const { pathname } = useLocation();
+  useEffect(() => markVisited(pathname), [pathname]);
   return (
     <div className="flex h-full min-h-0">
       <a
@@ -78,7 +87,7 @@ function AppSidebar() {
               <span className="truncate max-md:sr-only">{label}</span>
               {to === "/command" && pending > 0 ? (
                 <span
-                  className="ml-auto rounded-sm bg-warning px-1.5 text-2xs font-semibold text-[#1a1306] tabular max-md:hidden"
+                  className="ml-auto rounded-sm bg-warning px-1.5 text-2xs font-semibold text-on-warning tabular max-md:hidden"
                   title={`승인 대기 ${pending}건`}
                 >
                   {pending}
@@ -103,6 +112,7 @@ function AppSidebar() {
         </NavLink>
       </div>
       <div className="mt-auto" />
+      <PreferencesMenu />
       <UserMenu />
       <SystemStatus />
     </nav>
@@ -142,6 +152,51 @@ function OrgSwitcher() {
         <MenuSeparator />
         <MenuItem onSelect={() => navigate("/builder")}>
           <Plus /> 새 조직 만들기
+        </MenuItem>
+      </MenuContent>
+    </Menu>
+  );
+}
+
+/** 테마 선택과 시작 가이드 다시 열기. 로그인한 경우 테마를 계정 설정에도 저장한다. */
+function PreferencesMenu() {
+  const theme = useTheme();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const choose = (t: ThemeChoice) => {
+    setTheme(t);
+    if (user) {
+      void api("/auth/me", { method: "PATCH", body: { settings: { ...user.settings, theme: t } } }).then(
+        () => queryClient.invalidateQueries({ queryKey: ["auth"] }),
+        () => undefined,
+      );
+    }
+  };
+  return (
+    <Menu>
+      <MenuTrigger
+        className="mx-2 mb-1 flex h-9 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-sm text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+        aria-label="화면 설정"
+      >
+        <Palette className="size-4 shrink-0" aria-hidden />
+        <span className="truncate max-md:sr-only">화면 설정</span>
+      </MenuTrigger>
+      <MenuContent align="start" side="top" className="w-52">
+        <MenuLabel>테마</MenuLabel>
+        {THEMES.map((t) => (
+          <MenuItem key={t.id} onSelect={() => choose(t.id)} aria-checked={theme === t.id} role="menuitemradio">
+            <Check className={cn(theme === t.id ? "opacity-100" : "opacity-0")} /> {t.label}
+          </MenuItem>
+        ))}
+        <MenuSeparator />
+        <MenuItem
+          onSelect={() => {
+            setGuideHidden(false);
+            navigate("/");
+          }}
+        >
+          <CircleHelp /> 시작 가이드 보기
         </MenuItem>
       </MenuContent>
     </Menu>

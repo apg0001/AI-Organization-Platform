@@ -63,7 +63,137 @@
   --shadow-overlay: 0 12px 32px -8px rgb(0 0 0 / 0.55), 0 2px 8px -2px rgb(0 0 0 / 0.4);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
+  /* 파생 면: 경고·위험 상자, 경고 위 글자, 코드 블록, 입력 hover, 오버레이 가림막, 선택 영역 */
+  --on-warning: #1a1306;
+  --warning-surface: #2a2213;
+  --warning-border: #5c4a22;
+  --danger-surface: #2a1517;
+  --danger-border: #5a2a2a;
+  --code-bg: #0b0d11;
+  --input-hover: #454c5e;
+  --scrim: rgb(0 0 0 / 0.55);
+  --selection: rgb(151 166 255 / 0.32);
+
+  /* 코드 하이라이트 */
+  --code-fg: #d5d9e3;
+  --code-comment: #7d8496;
+  --code-keyword: #b39dfb;
+  --code-string: #8fd6a8;
+  --code-number: #f0b44c;
+  --code-title: #97a6ff;
+  --code-meta: #55c8dc;
+
   color-scheme: dark;
+}
+
+/*
+ * 라이트 테마: 낮의 사무실. 같은 역할의 토큰을 밝은 면에 맞춰 다시 고른 값(자동 반전이 아님).
+ * 글자 대비(배경 #f6f7f9 기준): text 16.2, muted 7.1, faint 5.0, primary-text 6.8, 상태·부서 색 4.5 이상.
+ */
+:root[data-theme="light"] {
+  --bg: #f6f7f9;
+  --surface-1: #ffffff;
+  --surface-2: #ffffff;
+  --surface-3: #eceef3;
+  --border: #dfe2e9;
+  --border-strong: #c3c8d4;
+  --text: #171a21;
+  --text-muted: #4d5465;
+  --text-faint: #636a7b;
+  --primary: #3d55d9;
+  --primary-hover: #3047c7;
+  --primary-text: #3249c4;
+  --primary-soft: rgb(61 85 217 / 0.1);
+  --success: #1b8150;
+  --warning: #9a6200;
+  --danger: #c62f2f;
+  --danger-solid: #c93c3c;
+  --status-idle: #6b7183;
+  --status-thinking: #6e4fd0;
+  --status-working: #3249c4;
+  --status-waiting: #9a6200;
+  --status-reviewing: #0d7488;
+  --status-completed: #1b8150;
+  --status-failed: #c62f2f;
+  --status-offline: #9aa0ae;
+  --dept-1: #2a5fd8;
+  --dept-2: #117a56;
+  --dept-3: #9a6413;
+  --dept-4: #8e47b8;
+  --dept-5: #b23d55;
+  --dept-6: #137a92;
+  --dept-7: #6c7414;
+  --dept-8: #5a4fd6;
+  --chart-1: #3d55d9;
+  --ring: #3d55d9;
+  --shadow-overlay: 0 12px 32px -8px rgb(23 26 33 / 0.18), 0 2px 8px -2px rgb(23 26 33 / 0.1);
+  --on-warning: #ffffff;
+  --warning-surface: #fdf6e7;
+  --warning-border: #e9cf98;
+  --danger-surface: #fdeeee;
+  --danger-border: #efc0c0;
+  --code-bg: #f1f3f7;
+  --input-hover: #a9afbd;
+  --scrim: rgb(23 26 33 / 0.35);
+  --selection: rgb(61 85 217 / 0.2);
+  --code-fg: #24292f;
+  --code-comment: #636a7b;
+  --code-keyword: #6e4fd0;
+  --code-string: #1b7a43;
+  --code-number: #9a5a00;
+  --code-title: #3249c4;
+  --code-meta: #0d7488;
+  color-scheme: light;
+}
+
+/* 고대비 테마: 검정 바탕·흰 글자·밝은 테두리, 노란 포커스 링. 보조 글자도 7:1 이상. */
+:root[data-theme="contrast"] {
+  --bg: #000000;
+  --surface-1: #0a0a0a;
+  --surface-2: #141414;
+  --surface-3: #262626;
+  --border: #6b6b6b;
+  --border-strong: #a3a3a3;
+  --text: #ffffff;
+  --text-muted: #e0e0e0;
+  --text-faint: #c2c2c2;
+  --primary: #3b55f0;
+  --primary-hover: #4a63ff;
+  --primary-text: #b3beff;
+  --primary-soft: rgb(91 115 255 / 0.28);
+  --success: #5fe0a0;
+  --warning: #ffc861;
+  --danger: #ff8f8f;
+  --danger-solid: #d32f2f;
+  --status-idle: #c2c2c2;
+  --status-thinking: #cdbbff;
+  --status-working: #b3beff;
+  --status-waiting: #ffc861;
+  --status-reviewing: #7fe3f2;
+  --status-completed: #5fe0a0;
+  --status-failed: #ff8f8f;
+  --status-offline: #8a8a8a;
+  --chart-1: #b3beff;
+  --ring: #ffd84d;
+  --on-warning: #000000;
+  --warning-surface: #2b2100;
+  --warning-border: #ffc861;
+  --danger-surface: #2b0d0d;
+  --danger-border: #ff8f8f;
+  --code-bg: #000000;
+  --input-hover: #d0d0d0;
+  --scrim: rgb(0 0 0 / 0.75);
+  --selection: rgb(255 216 77 / 0.35);
+  --code-fg: #ffffff;
+  --code-comment: #c2c2c2;
+  --code-keyword: #cdbbff;
+  --code-string: #9ff0bf;
+  --code-number: #ffc861;
+  --code-title: #b3beff;
+  --code-meta: #7fe3f2;
+}
+:root[data-theme="contrast"] :focus-visible {
+  outline-width: 3px;
 }
 
 @theme inline {
@@ -89,6 +219,14 @@
   --color-danger: var(--danger);
   --color-danger-solid: var(--danger-solid);
   --color-ring: var(--ring);
+  --color-on-warning: var(--on-warning);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-border: var(--warning-border);
+  --color-danger-surface: var(--danger-surface);
+  --color-danger-border: var(--danger-border);
+  --color-code-bg: var(--code-bg);
+  --color-input-hover: var(--input-hover);
+  --color-scrim: var(--scrim);
 
   /* 타입 스케일(정보 밀도가 높은 도구 UI). px 기준: 11/12/13/14/16/20/24 */
   --text-2xs: 0.6875rem;
@@ -137,7 +275,7 @@
   }
   /* 브라우저 표면도 디자인의 일부: 선택·캐럿·스크롤바·포커스. */
   ::selection {
-    background: rgb(151 166 255 / 0.32);
+    background: var(--selection);
     color: var(--text);
   }
   input,
@@ -266,50 +404,50 @@
   color: var(--text-muted);
 }
 
-/* 코드 하이라이트(highlight.js 클래스) — 팔레트에서 파생 */
+/* 코드 하이라이트(highlight.js 클래스) — 테마 토큰에서 */
 .hljs {
-  color: #d5d9e3;
+  color: var(--code-fg);
 }
 .hljs-comment,
 .hljs-quote {
-  color: #7d8496;
+  color: var(--code-comment);
   font-style: italic;
 }
 .hljs-keyword,
 .hljs-selector-tag,
 .hljs-built_in,
 .hljs-type {
-  color: #b39dfb;
+  color: var(--code-keyword);
 }
 .hljs-string,
 .hljs-attr,
 .hljs-template-tag {
-  color: #8fd6a8;
+  color: var(--code-string);
 }
 .hljs-number,
 .hljs-literal,
 .hljs-symbol {
-  color: #f0b44c;
+  color: var(--code-number);
 }
 .hljs-title,
 .hljs-function .hljs-title,
 .hljs-title.function_ {
-  color: #97a6ff;
+  color: var(--code-title);
 }
 .hljs-variable,
 .hljs-params,
 .hljs-property {
-  color: #e6e8ee;
+  color: var(--text);
 }
 .hljs-meta,
 .hljs-section {
-  color: #55c8dc;
+  color: var(--code-meta);
 }
 .hljs-deletion {
-  color: #f47272;
+  color: var(--danger);
 }
 .hljs-addition {
-  color: #45c486;
+  color: var(--success);
 }
 
 /* React Flow를 토큰에 맞춘다 */
@@ -326,4 +464,7 @@
   --xy-handle-background-color: var(--surface-3);
   --xy-handle-border-color: var(--border-strong);
   --xy-attribution-background-color: transparent;
+  --xy-background-pattern-dots-color-default: var(--border);
+  --xy-minimap-node-background-color-default: var(--border-strong);
+  --xy-minimap-mask-background-color-default: color-mix(in srgb, var(--bg) 70%, transparent);
 }

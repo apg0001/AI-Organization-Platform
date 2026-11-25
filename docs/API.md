@@ -31,7 +31,7 @@
 | POST | `/auth/setup` | 첫 계정 `{username, password(8자+), display_name?}` → 201 + 세션 쿠키. 계정이 있으면 409 |
 | POST | `/auth/login` | `{username, password}` → 세션 쿠키. 실패 401, 시도 제한 429 |
 | POST | `/auth/logout` | 세션 삭제, 쿠키 삭제(204) |
-| PATCH | `/auth/me` | `{display_name?, settings?}` 사용자 설정 |
+| PATCH | `/auth/me` | `{display_name?, settings?}` 사용자 설정(settings는 통째로 바꿈. 웹은 `theme`: dark·light·contrast·system을 저장) |
 | POST | `/auth/password` | `{current_password, new_password}` → 204, 다른 세션 종료 |
 
 ## 시스템
