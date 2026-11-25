@@ -1,3 +1,3 @@
 """AI Organization Platform — local backend."""
 
-__version__ = "0.0.1"
+__version__ = "0.1.0"
