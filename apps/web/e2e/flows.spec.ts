@@ -136,6 +136,19 @@ test("커맨드 센터: 스트리밍 응답·명령·멘션 자동완성·승인
   await expect(page.getByText("보고를 취합했습니다.")).toBeVisible();
   await expect(page.getByText("[QA 엔지니어의 보고 — 작업 상태: done]")).toBeVisible();
   await expect(page.getByRole("complementary", { name: "실행 현황" }).getByText("E2E 위임 작업")).toBeVisible();
+
+  // 두 에이전트가 동시에 응답하면 입력창 위 '응답 중' 도크에 한 줄씩 보인다(#46).
+  await input.fill("@QA 엔지니어 @코드 리뷰어 [승인] 동시에 점검해 줘");
+  await input.press("Escape");
+  await input.press("Enter");
+  const dock = page.getByRole("region", { name: "응답 중 2" });
+  await expect(dock).toBeVisible();
+  await expect(dock.getByRole("button", { name: /QA 엔지니어/ })).toBeVisible();
+  await expect(dock.getByRole("button", { name: /코드 리뷰어/ })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("concurrent-dock.png") });
+  const approvals = page.getByRole("alert").filter({ hasText: "실행 승인을 요청합니다" });
+  for (let i = 0; i < 2; i += 1) await approvals.getByRole("button", { name: "허용" }).first().click();
+  await expect(page.getByRole("region", { name: /응답 중/ })).toHaveCount(0);
 });
 
 test("프로젝트 등록과 기능 관리·사무실 화면", async ({ page }) => {
