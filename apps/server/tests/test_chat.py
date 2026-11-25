@@ -274,6 +274,39 @@ def test_commands(chat: TestClient, fake: FakeRuntime) -> None:
     assert run("nope")["status"] == "error"
 
 
+def test_status_lists_running_agents(chat: TestClient, fake: FakeRuntime) -> None:
+    org, conv = setup_org(chat)
+    ceo = next(a for a in org["agents"] if a["is_lead"])
+
+    def status_rows() -> list[list[str]]:
+        url = f"/api/v1/conversations/{conv['id']}/commands"
+        rows: list[list[str]] = chat.post(url, json={"name": "status", "args": {}}).json()["data"]["result"][
+            "rows"
+        ]
+        return rows
+
+    def running_rows() -> list[list[str]]:
+        return [r for r in status_rows() if r[0].startswith("실행 중:")]
+
+    # 실행 중이 아니면 추가 행이 없다(기존 출력 유지).
+    assert running_rows() == []
+    assert ["실행 중인 세션", "0"] in status_rows()
+
+    fake.script = [("sleep", 5)]
+    res = chat.post(f"/api/v1/conversations/{conv['id']}/messages", json={"content": "오래 걸리는 일"})
+    reply_id = res.json()["assistant_message_ids"][0]
+    deadline = time.time() + 5
+    while chat.get(f"/api/v1/agents/{ceo['id']}").json()["status"] != "thinking":
+        assert time.time() < deadline
+        time.sleep(0.05)
+    assert running_rows() == [[f"실행 중: {ceo['name']}", "생각 중"]]
+    assert ["실행 중인 세션", "1"] in status_rows()
+
+    assert chat.post(f"/api/v1/conversations/{conv['id']}/stop").json()["stopped"] == 1
+    wait_message(chat, conv["id"], reply_id, timeout=8)
+    assert running_rows() == []
+
+
 def test_attachments_validated_and_delivered(chat: TestClient, fake: FakeRuntime, settings: Settings) -> None:
     _, conv = setup_org(chat)
     png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32

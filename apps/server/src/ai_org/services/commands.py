@@ -284,6 +284,12 @@ async def _status(ctx: CommandContext) -> CommandResult:
         ["승인 대기", str(len(pending))],
         ["진행 중 작업", str(len(open_tasks))],
     ]
+    # 실행 중인 에이전트: 상태는 에이전트 단위(Agent.status)라 run이 여러 개여도 1행만 보인다.
+    # 세션 수는 위 "실행 중인 세션" 행에 있다. 순서는 조직 구성원 순서(생성 순)를 따른다.
+    running_ids = {r.agent_id for r in running}
+    rows += [
+        [f"실행 중: {a.name}", STATUS_LABELS.get(a.status, a.status)] for a in agents if a.id in running_ids
+    ]
     return CommandResult("list", "조직 상태", columns=["항목", "값"], rows=rows)
 
 
