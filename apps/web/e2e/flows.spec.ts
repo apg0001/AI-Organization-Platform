@@ -101,6 +101,19 @@ test("커맨드 센터: 스트리밍 응답·명령·멘션 자동완성·승인
   await page.getByRole("button", { name: "CEO에게 업무 지시" }).click();
   const input = page.getByLabel("메시지");
 
+  // 입력창은 내용에 맞춰 늘어나고 5줄에서 멈춘 뒤 스크롤한다(#44).
+  const height = () => input.evaluate((el) => el.getBoundingClientRect().height);
+  const oneLine = await height();
+  await input.fill("1\n2\n3");
+  const threeLines = await height();
+  expect(threeLines).toBeGreaterThan(oneLine * 2);
+  await input.fill(Array.from({ length: 12 }, (_, i) => `${i + 1}`).join("\n"));
+  const capped = await height();
+  expect(capped).toBeLessThan(oneLine * 6);
+  expect(await input.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await input.fill("");
+  expect(await height()).toBe(oneLine);
+
   await input.fill("안녕하세요 팀");
   await input.press("Enter");
   await expect(page.getByText("가짜 런타임 응답입니다:")).toBeVisible();
