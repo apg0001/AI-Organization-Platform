@@ -145,11 +145,17 @@ def create_conversation(body: ConversationIn, db: DB, request: Request) -> dict[
     _check_target(db, body.organization_id, body.target_kind, body.target_id)
     if body.project_id and db.get(Project, body.project_id) is None:
         raise not_found("project")
+    project_id = body.project_id
+    if project_id is None:
+        # 조직에 연결된 프로젝트가 하나뿐이면 그 프로젝트에서 일한다(빈 전용 폴더에서 헛돌지 않게).
+        linked = list(db.scalars(select(Project.id).where(Project.organization_id == body.organization_id)))
+        if len(linked) == 1:
+            project_id = linked[0]
     conv = Conversation(
         organization_id=body.organization_id,
         target_kind=body.target_kind,
         target_id=body.target_id if body.target_kind != "org" else None,
-        project_id=body.project_id,
+        project_id=project_id,
         title=body.title or "새 대화",
     )
     db.add(conv)
