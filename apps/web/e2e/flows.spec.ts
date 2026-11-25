@@ -204,6 +204,16 @@ test("프로젝트 등록과 기능 관리·사무실 화면", async ({ page }) 
   await picker.getByRole("button", { name: "이 폴더 추가" }).click();
   await expect(page.getByRole("button", { name: "picked-app 등록 해제(파일은 지우지 않음)" })).toBeVisible();
 
+  // 프로젝트를 조직에 연결하면, 프로젝트 없이 시작한 기존 대화에 경고와 바로 연결 버튼이 뜬다(#71).
+  await page.getByLabel("picked-app 연결 조직").selectOption({ index: 1 });
+  await page.getByRole("link", { name: "커맨드 센터", exact: true }).click();
+  await page.getByRole("link", { name: /안녕하세요 팀/ }).first().click();
+  const notice = page.getByRole("status").filter({ hasText: "빈 작업 폴더" });
+  await expect(notice).toBeVisible();
+  await notice.getByRole("button", { name: "picked-app 연결" }).click();
+  await expect(notice).toHaveCount(0);
+  await page.getByRole("link", { name: "프로젝트", exact: true }).click();
+
   await page.getByRole("link", { name: "기능 관리", exact: true }).click();
   await expect(page.getByRole("tab", { name: /Skills/ })).toBeVisible();
   await page.getByRole("tab", { name: /MCP 서버/ }).click();
