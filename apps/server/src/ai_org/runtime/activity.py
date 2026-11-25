@@ -62,6 +62,8 @@ def classify(tool: str, tool_input: dict[str, Any]) -> Activity:
     if tool == "Bash":
         command = tool_input.get("command")
         return "testing" if isinstance(command, str) and is_test_command(command) else "unknown"
+    if tool.startswith("mcp__org__"):
+        return "delegating"
     if tool.startswith("mcp__"):
         return "unknown"
     return _TOOL_ACTIVITY.get(tool, "unknown")
@@ -69,7 +71,19 @@ def classify(tool: str, tool_input: dict[str, Any]) -> Activity:
 
 def target_of(tool: str, tool_input: dict[str, Any], limit: int = 120) -> str:
     """활동 패널에 보여 줄 짧은 대상(경로·명령·검색어). 파일 내용이나 전체 출력은 넣지 않는다."""
-    for key in ("file_path", "notebook_path", "path", "pattern", "query", "url", "command", "description"):
+    keys = (
+        "file_path",
+        "notebook_path",
+        "path",
+        "pattern",
+        "query",
+        "url",
+        "command",
+        "assignee",
+        "reviewer",
+        "description",
+    )
+    for key in keys:
         value = tool_input.get(key)
         if isinstance(value, str) and value:
             single = " ".join(value.split())

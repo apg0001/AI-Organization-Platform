@@ -31,7 +31,7 @@
 | CHAT-5 | @멘션(에이전트 직접 지정), @All | Tested |
 | CHAT-6 | 컨텍스트 첨부(프로젝트 경로·에이전트·작업 결과·GitHub·Skill), 범위 검증 | Tested |
 | CHAT-7 | 실행 패널(상태·도구·승인·작업), 접기 | Implemented |
-| ORCH-1 | CEO가 업무를 분석해 하위 에이전트에게 자동 분배·취합 | Planned(Phase 5) |
+| ORCH-1 | CEO가 업무를 분석해 하위 에이전트에게 자동 분배·취합 | Tested(실제 Claude 검증) — 선행 작업 스케줄링은 Planned |
 | ORCH-2 | 사용자 지시 위임(`/delegate`) → 작업 기록·실행·결과 | Tested |
 | CAP-1 | Skills·MCP·Plugins 탐색(비밀 제외) | Tested |
 | CAP-2 | 에이전트별 Skills 허용 → 실행에 반영 | Implemented(SDK `skills` 옵션) |

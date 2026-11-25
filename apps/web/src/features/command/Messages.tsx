@@ -116,6 +116,7 @@ export function ActivityList({ entries, open: initial = false }: { entries: Acti
 export function MessageView({
   message,
   agent,
+  delegatedBy,
   liveText,
   liveActivity,
   onRegenerate,
@@ -123,6 +124,7 @@ export function MessageView({
 }: {
   message: ChatMessage;
   agent?: Agent;
+  delegatedBy?: Agent;
   liveText?: string;
   liveActivity?: ActivityEntry[];
   onRegenerate?: () => void;
@@ -222,7 +224,11 @@ export function MessageView({
         <span className="flex items-center gap-2 text-xs">
           <span className="font-medium text-fg">{agent?.name ?? "삭제된 에이전트"}</span>
           {agent?.title ? <span className="text-faint">{agent.title}</span> : null}
-          {message.task_id ? <span className="rounded-sm bg-surface-3 px-1 text-2xs text-muted">위임 작업</span> : null}
+          {delegatedBy ? (
+            <span className="rounded-sm bg-surface-3 px-1.5 text-2xs text-muted">← {delegatedBy.name}의 위임</span>
+          ) : message.task_id ? (
+            <span className="rounded-sm bg-surface-3 px-1 text-2xs text-muted">위임 작업</span>
+          ) : null}
         </span>
         <ActivityList entries={activity} open={working} />
         {text ? <Markdown text={text} /> : null}

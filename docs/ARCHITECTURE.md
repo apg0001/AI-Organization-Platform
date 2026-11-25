@@ -41,6 +41,8 @@
    금지 도구, 권한 모드, 첨부 폴더(add_dirs), Skills, 이전 세션 ID(resume).
 5. 런타임 이벤트 → `message.delta`(방송만) / `tool.started|completed|failed`(활동 기록·상태) / `turn.completed`(세션·비용).
 6. 도구 호출마다 PreToolUse 훅 → `policy.decide` → 허용 / 거부 / 승인 대기(`Approval` + `approval.requested`).
+6-1. 위임 권한이 있으면 `org` 도구가 붙는다. `delegate_task` 호출 → 작업 생성 → 대상 에이전트 실행(같은 대화) →
+   위임자는 슬롯을 반납하고 기다렸다가 보고를 도구 결과로 받는다([AGENT_ORCHESTRATION.md](AGENT_ORCHESTRATION.md)).
 7. 종료 시 메시지 확정(`done|error|interrupted`), 작업 결과, 활동 이벤트, `message.completed` 방송, 에이전트 상태 `completed|failed|idle`.
 
 ## 4. 데이터 흐름: 조직 설계

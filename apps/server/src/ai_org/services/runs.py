@@ -26,6 +26,7 @@ from ai_org.models import (
     Approval,
     Attachment,
     ChatMessage,
+    Collaboration,
     Conversation,
     Department,
     Organization,
@@ -34,7 +35,7 @@ from ai_org.models import (
     Task,
 )
 from ai_org.runtime.activity import classify, target_of
-from ai_org.runtime.base import AgentRuntime, PermissionDecision, RunRequest
+from ai_org.runtime.base import AgentRuntime, OrgTool, PermissionDecision, RunRequest
 from ai_org.schemas import AgentPermissions
 from ai_org.services import policy
 from ai_org.services.bus import EventBus
@@ -43,6 +44,8 @@ from ai_org.services.prompting import ContextLines, system_append, user_prompt
 
 GITHUB_REPO = re.compile(r"^[\w.-]+/[\w.-]+$")
 MAX_TASK_RESULT = 4000
+MAX_REPORT = 6000
+MAX_DELEGATION_DEPTH = 3
 
 
 class RouteError(ValueError):
@@ -65,6 +68,9 @@ class ActiveRun:
     handle: Any = None
     approvals: set[str] = field(default_factory=set)
     task: asyncio.Task[None] | None = None
+    task_id: str | None = None
+    # 위임 체인(이 실행에 이르기까지 위임한 에이전트들). 순환·깊이 제한에 쓴다.
+    chain: tuple[str, ...] = ()
 
 
 def utcnow() -> datetime:
@@ -85,6 +91,33 @@ def team_lead(db: Session, dept: Department) -> Agent | None:
         if m.reports_to_id not in ids:
             return m
     return members[0] if members else None
+
+
+def delegation_targets(db: Session, agent: Agent) -> list[Agent]:
+    """위임·검토 요청 가능한 대상(활성만).
+
+    보고 트리의 모든 하위 구성원 + 이 에이전트가 협업 관계로 연결한 대상.
+    """
+    members = list(db.scalars(select(Agent).where(Agent.organization_id == agent.organization_id)))
+    reports: dict[str, list[Agent]] = {}
+    for m in members:
+        if m.reports_to_id:
+            reports.setdefault(m.reports_to_id, []).append(m)
+    found: dict[str, Agent] = {}
+    stack = list(reports.get(agent.id, []))
+    while stack:
+        m = stack.pop()
+        if m.id not in found:
+            found[m.id] = m
+            stack.extend(reports.get(m.id, []))
+    collab_targets = db.scalars(
+        select(Collaboration.target_agent_id).where(Collaboration.source_agent_id == agent.id)
+    )
+    by_id = {m.id: m for m in members}
+    for target_id in collab_targets:
+        if target_id in by_id:
+            found.setdefault(target_id, by_id[target_id])
+    return [m for m in members if m.id in found and m.enabled and m.id != agent.id]
 
 
 def org_lead(db: Session, org_id: str) -> Agent | None:
@@ -217,6 +250,8 @@ class RunManager:
         prompt: str,
         attachments: list[Attachment],
         task_id: str | None = None,
+        chain: tuple[str, ...] = (),
+        delegated_by: str | None = None,
     ) -> ChatMessage:
         msg = ChatMessage(
             conversation_id=conv.id,
@@ -224,12 +259,15 @@ class RunManager:
             agent_id=route.agent.id,
             status="pending",
             task_id=task_id,
+            data={"delegated_by": delegated_by} if delegated_by else {},
         )
         db.add(msg)
         db.commit()
-        run = ActiveRun(message_id=msg.id, conversation_id=conv.id, agent_id=route.agent.id)
+        run = ActiveRun(
+            message_id=msg.id, conversation_id=conv.id, agent_id=route.agent.id, task_id=task_id, chain=chain
+        )
         self.runs[msg.id] = run
-        request = self._build_request(db, conv, route, prompt, attachments)
+        request = self._build_request(db, conv, route, prompt, attachments, run)
         run.task = asyncio.create_task(self._execute(run, request, route.agent.runtime))
         self.bus.publish(
             "message.created",
@@ -247,7 +285,13 @@ class RunManager:
         return workspace
 
     def _build_request(
-        self, db: Session, conv: Conversation, route: Route, prompt: str, attachments: list[Attachment]
+        self,
+        db: Session,
+        conv: Conversation,
+        route: Route,
+        prompt: str,
+        attachments: list[Attachment],
+        run: ActiveRun | None = None,
     ) -> RunRequest:
         agent = route.agent
         org = db.get(Organization, conv.organization_id)
@@ -267,13 +311,16 @@ class RunManager:
         resume = thread.session_id if thread is not None and thread.cwd == str(cwd) else None
         skills = tuple(cap.split(":")[-1] for cap in agent.allowed_skills)
         project_paths = list(db.scalars(select(Project.path)))
+        can_delegate = perms.can_delegate and run is not None and len(run.chain) < MAX_DELEGATION_DEPTH
+        delegates = delegation_targets(db, agent) if can_delegate else []
+        org_tools = self._org_tools(run, conv.id) if run is not None and delegates else ()
         mcp_servers = resolve_mcp_servers(self.settings.claude_home, project_paths, agent.allowed_mcp_servers)
         plugin_paths = tuple(resolve_plugin_paths(self.settings.claude_home, agent.allowed_plugins))
         return RunRequest(
             agent_id=agent.id,
             prompt=user_prompt(prompt, ctx, attachments, broadcast=route.broadcast),
             cwd=cwd,
-            system_prompt_append=system_append(org, agent, agents, depts, route.scope, route.team),
+            system_prompt_append=system_append(org, agent, agents, depts, route.scope, route.team, delegates),
             model=agent.model,
             disallowed_tools=policy.disallowed_tools(perms),
             permission_mode=perms.permission_mode,
@@ -284,7 +331,123 @@ class RunManager:
             approval_timeout_s=self.settings.approval_timeout_s,
             mcp_servers=mcp_servers,
             plugin_paths=plugin_paths,
+            org_tools=org_tools,
         )
+
+    # ── 위임(Phase 5) ──────────────────────────────────────────────────────
+
+    def _org_tools(self, run: ActiveRun, conversation_id: str) -> tuple[OrgTool, ...]:
+        async def delegate(args: dict[str, Any]) -> str:
+            return await self._delegate(run, conversation_id, "delegated", args)
+
+        async def review(args: dict[str, Any]) -> str:
+            return await self._delegate(run, conversation_id, "review", args)
+
+        return (
+            OrgTool(
+                "delegate_task",
+                "조직의 하위 구성원 또는 협업 대상에게 업무를 위임하고, 그 구성원이 끝낸 결과 보고를 받는다. "
+                "assignee는 구성원 이름, title은 짧은 작업 제목, "
+                "brief는 목표·범위·결과물 형식을 담은 지시다. "
+                "여러 구성원에게 동시에 위임하려면 이 도구를 여러 번 호출한다.",
+                {"assignee": str, "title": str, "brief": str},
+                delegate,
+            ),
+            OrgTool(
+                "request_review",
+                "하위 구성원 또는 협업 대상에게 결과물 검토를 요청하고 검토 의견을 받는다. "
+                "content에 검토할 내용과 관점을 적는다.",
+                {"reviewer": str, "content": str},
+                review,
+            ),
+        )
+
+    async def _delegate(self, run: ActiveRun, conversation_id: str, kind: str, args: dict[str, Any]) -> str:
+        name = str(args.get("assignee") or args.get("reviewer") or "").strip().lstrip("@")
+        brief = str(args.get("brief") or args.get("content") or "").strip()
+        title = str(args.get("title") or "").strip() or (brief.splitlines()[0] if brief else "")
+        if kind == "review":
+            title = f"검토: {title}"
+        with self.factory() as db:
+            me = db.get(Agent, run.agent_id)
+            conv = db.get(Conversation, conversation_id)
+            if me is None or conv is None:
+                return "위임할 수 없습니다: 실행 정보를 찾지 못했습니다."
+            targets = delegation_targets(db, me)
+            target = next((a for a in targets if a.name == name), None)
+            if target is None:
+                options = ", ".join(a.name for a in targets) or "없음"
+                return (
+                    f"'{name}'에게는 위임할 수 없습니다(하위 구성원·협업 대상만 가능). 가능한 대상: {options}"
+                )
+            if target.id in run.chain:
+                return f"'{target.name}'은(는) 이 업무를 위임한 쪽이라 다시 위임할 수 없습니다(위임 순환)."
+            if not brief:
+                return "brief(업무 지시)가 비어 있습니다."
+            if any(
+                r.conversation_id == conversation_id and r.agent_id == target.id for r in self.runs.values()
+            ):
+                return f"'{target.name}'은(는) 이 대화에서 이미 작업 중입니다. 끝난 뒤 다시 요청하세요."
+            task = Task(
+                organization_id=me.organization_id,
+                project_id=conv.project_id,
+                parent_id=run.task_id,
+                assignee_id=target.id,
+                requested_by_id=me.id,
+                title=title[:200],
+                brief=brief,
+                status="running",
+            )
+            db.add(task)
+            verb = "검토 요청" if kind == "review" else "위임"
+            db.add(
+                ActivityEvent(
+                    organization_id=me.organization_id,
+                    agent_id=me.id,
+                    kind=f"task.{kind}",
+                    summary=f"{me.name} → {target.name} {verb}: {task.title}",
+                )
+            )
+            db.commit()
+            header = (
+                f"[{me.name}({me.title})의 {verb}] 아래 업무를 처리하고, "
+                f"결과를 {me.name}에게 보고하는 형식으로 정리하세요.\n"
+                f"작업: {task.title}\n\n"
+            )
+            child_msg = self.launch(
+                db,
+                conv,
+                Route(target, "agent"),
+                header + brief,
+                [],
+                task_id=task.id,
+                chain=(*run.chain, me.id),
+                delegated_by=me.id,
+            )
+            task_id, target_name, org_id = task.id, target.name, me.organization_id
+        self.bus.publish(
+            "task.delegated",
+            organization_id=org_id,
+            conversation_id=conversation_id,
+            from_agent_id=run.agent_id,
+            to_agent_id=child_msg.agent_id,
+            task_id=task_id,
+            kind=kind,
+        )
+        child = self.runs.get(child_msg.id)
+        # 결과를 기다리는 동안 동시 실행 슬롯을 내놓는다(위임받은 실행이 슬롯을 얻을 수 있게 — 교착 방지).
+        self.limit.release()
+        try:
+            if child is not None and child.task is not None:
+                await asyncio.shield(child.task)
+        finally:
+            await asyncio.shield(self.limit.acquire())
+        with self.factory() as db:
+            done = db.get(ChatMessage, child_msg.id)
+            finished = db.get(Task, task_id)
+            body = (done.content or done.error or "(내용 없음)") if done else "(결과를 찾지 못함)"
+            status = finished.status if finished else "unknown"
+        return f"[{target_name}의 보고 — 작업 상태: {status}]\n{body[:MAX_REPORT]}"
 
     def _set_agent_status(self, agent_id: str, status: str, detail: str = "") -> None:
         with self.factory() as db:

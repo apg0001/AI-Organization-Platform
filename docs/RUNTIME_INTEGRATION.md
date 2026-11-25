@@ -33,6 +33,7 @@
 | `skills` | 에이전트에게 허용된 Skill 이름 | SDK의 Skills 제한 옵션 |
 | `mcp_servers`, `strict_mcp_config=True` | 에이전트에게 허용된 MCP 서버의 원본 설정만 | 허용하지 않은 서버(사용자·프로젝트 설정)는 붙지 않음 |
 | `plugins` | 허용된 플러그인 설치 경로(`{"type":"local"}`) | |
+| `mcp_servers["org"]` | 위임 권한이 있을 때 인프로세스 MCP 서버(`delegate_task`, `request_review`) | 런타임 계약의 `OrgTool`을 SDK `create_sdk_mcp_server`로 노출. `MCP_TOOL_TIMEOUT`을 늘려 하위 작업을 기다림 |
 | `resume` | 같은 대화·에이전트·작업 폴더의 이전 세션 ID | 대화 맥락 유지 |
 | `include_partial_messages` | True | 텍스트 스트리밍 |
 | `max_turns` | `AI_ORG_MAX_TURNS`(30) | 폭주 방지 |

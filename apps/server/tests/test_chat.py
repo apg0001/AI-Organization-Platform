@@ -39,6 +39,20 @@ class FakeRun:
                 yield RuntimeEvent("tool.completed" if decision.allow else "tool.failed", {"id": tool})
             elif step[0] == "sleep":
                 await asyncio.sleep(step[1])
+            elif step[0] == "call":
+                # 플랫폼 도구(mcp__org__*) 호출: 실제 런타임처럼 권한 확인 후 핸들러를 부른다.
+                _, name, args = step
+                tool_name = f"mcp__org__{name}"
+                decision = await self.on_permission(tool_name, args)
+                yield RuntimeEvent("tool.started", {"id": tool_name, "tool": tool_name, "input": args})
+                handler = next((t.handler for t in self.request.org_tools if t.name == name), None)
+                if not decision.allow or handler is None:
+                    yield RuntimeEvent("tool.failed", {"id": tool_name})
+                    yield RuntimeEvent("message", {"text": "도구 없음" if handler is None else "거부됨"})
+                    continue
+                result = await handler(args)
+                yield RuntimeEvent("tool.completed", {"id": tool_name})
+                yield RuntimeEvent("message", {"text": f"취합: {result}"})
         yield RuntimeEvent(
             "turn.completed",
             {
@@ -60,6 +74,7 @@ class FakeRuntime:
 
     def __init__(self) -> None:
         self.script: list[Any] = [("text", "안녕하세요 반갑습니다")]
+        self.scripts: dict[str, list[Any]] = {}  # 에이전트 ID별 스크립트(없으면 script)
         self.requests: list[RunRequest] = []
 
     def detect(self) -> Any:  # pragma: no cover
@@ -67,7 +82,7 @@ class FakeRuntime:
 
     def start(self, request: RunRequest, on_permission: PermissionCallback) -> FakeRun:
         self.requests.append(request)
-        return FakeRun(request, on_permission, self.script)
+        return FakeRun(request, on_permission, self.scripts.get(request.agent_id, self.script))
 
 
 @pytest.fixture

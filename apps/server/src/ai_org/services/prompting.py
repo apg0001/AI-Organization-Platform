@@ -49,6 +49,7 @@ def system_append(
     depts: Sequence[Department],
     scope: str,
     team: Department | None = None,
+    delegates: Sequence[Agent] = (),
 ) -> str:
     dept = next((d.name for d in depts if d.id == agent.department_id), None)
     out = [
@@ -76,10 +77,9 @@ def system_append(
             "",
             "## 조직 전체 대화",
             "사용자는 조직 전체(CEO)에게 말하고 있습니다. 요청을 분석하고,",
-            "어떤 구성원이 무엇을 맡으면 좋을지 분배 계획을 제시한 뒤",
-            "당신이 직접 할 수 있는 부분을 수행하세요.",
-            "다른 구성원에게 업무를 넘기는 자동 위임은 아직 플랫폼이 지원하지 않습니다. 필요한 위임은",
-            "사용자에게 `/delegate @이름 업무` 명령으로 제안하세요.",
+            "어떤 구성원이 무엇을 맡으면 좋을지 판단해 업무를 나누고, 결과를 취합해 보고하세요.",
+            "위임 도구가 없다면 직접 할 수 있는 부분을 수행하고,",
+            "필요한 위임은 `/delegate @이름 업무`로 제안하세요.",
             "",
             "조직 구성:",
             roster(org, agents, depts),
@@ -91,6 +91,22 @@ def system_append(
             f"## 팀 대화: {team.name}",
             "사용자는 이 팀 전체에게 말하고 있고, 당신이 팀을 대표해 답합니다. 팀원:",
             roster(org, members, depts),
+        ]
+    if delegates:
+        out += [
+            "",
+            "## 업무 위임",
+            "`delegate_task` 도구로 아래 구성원에게 업무를 위임할 수 있습니다.",
+            "도구는 그 구성원이 일을 끝낸 뒤 보고를 돌려줍니다.",
+            "`request_review` 도구로 결과물 검토를 요청할 수 있습니다.",
+            "서로 독립적인 업무는 여러 번 호출해 함께 진행하세요.",
+            "위임할 때는 목표·범위·결과물 형식을 분명히 적고, 받은 보고를 검토·취합해 최종 결과를 만드세요.",
+            "간단해서 직접 하는 편이 빠른 일은 위임하지 마세요.",
+            "위임 가능한 구성원:",
+            *[
+                f"- {a.name}" + (f" ({a.title})" if a.title else "") + (f": {a.role}" if a.role else "")
+                for a in delegates
+            ],
         ]
     out += ["", "사용자의 언어로 답하세요. 하지 않은 일을 했다고 말하지 마세요."]
     return "\n".join(out)

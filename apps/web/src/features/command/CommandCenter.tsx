@@ -34,6 +34,7 @@ import {
   type ContextItem,
   type Conversation,
   type ConversationDetail,
+  type Task,
   api,
 } from "@/lib/api";
 import { onLive } from "@/lib/live";
@@ -347,6 +348,7 @@ function ChatPane({
               key={m.id}
               message={m}
               agent={m.agent_id ? agentById.get(m.agent_id) : undefined}
+              delegatedBy={m.data.delegated_by ? agentById.get(m.data.delegated_by) : undefined}
               liveText={liveText[m.id]}
               liveActivity={liveActivity[m.id]}
               onRegenerate={m.role === "assistant" && !busy ? () => regenerate(m.id) : undefined}
@@ -730,9 +732,13 @@ function ExecutionPanel({ orgId, agents }: { orgId: string; agents: Agent[]; con
       </PanelSection>
       <PanelSection title="작업" open={sections.tasks} onToggle={() => toggle("tasks")}>
         {(tasks.data ?? []).length === 0 ? <p className="text-xs text-faint">/delegate로 만든 작업이 여기에 표시됩니다.</p> : null}
-        {(tasks.data ?? []).slice(0, 12).map((t) => (
-          <div key={t.id} className="flex items-center justify-between gap-2 text-xs">
-            <span className="truncate">{t.title}</span>
+        {taskTree(tasks.data ?? []).slice(0, 16).map(({ task: t, depth }) => (
+          <div key={t.id} className="flex items-center justify-between gap-2 text-xs" style={{ paddingLeft: depth * 12 }}>
+            <span className="min-w-0 truncate">
+              {depth > 0 ? <span className="mr-1 text-faint" aria-hidden>↳</span> : null}
+              {t.title}
+              {t.assignee_id ? <span className="ml-1.5 text-faint">{name(t.assignee_id)}</span> : null}
+            </span>
             <TaskStatus status={t.status} />
           </div>
         ))}
@@ -742,6 +748,22 @@ function ExecutionPanel({ orgId, agents }: { orgId: string; agents: Agent[]; con
       </p>
     </aside>
   );
+}
+
+/** 위임 트리 순서로 펼친다(부모 바로 아래 자식). 최근 작업 트리가 위로. */
+function taskTree(tasks: Task[]): { task: Task; depth: number }[] {
+  const children = new Map<string, Task[]>();
+  const ids = new Set(tasks.map((t) => t.id));
+  for (const t of tasks) {
+    if (t.parent_id && ids.has(t.parent_id)) children.set(t.parent_id, [...(children.get(t.parent_id) ?? []), t]);
+  }
+  const out: { task: Task; depth: number }[] = [];
+  const visit = (t: Task, depth: number) => {
+    out.push({ task: t, depth });
+    (children.get(t.id) ?? []).slice().reverse().forEach((c) => visit(c, depth + 1));
+  };
+  tasks.filter((t) => !t.parent_id || !ids.has(t.parent_id)).forEach((t) => visit(t, 0));
+  return out;
 }
 
 function PanelSection({ title, open, onToggle, children }: { title: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {

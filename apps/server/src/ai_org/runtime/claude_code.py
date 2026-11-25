@@ -23,6 +23,8 @@ from typing import Any
 from ai_org.runtime.base import PermissionCallback, RunRequest, RuntimeEvent
 from ai_org.schemas import RuntimeInfo
 
+ORG_SERVER = "org"  # 도구 이름은 mcp__org__<도구>가 된다(policy·activity가 이 접두사를 안다).
+
 
 class ClaudeCodeRuntime:
     id = "claude-code"
@@ -105,6 +107,9 @@ class ClaudeCodeRun:
             return PermissionResultDeny(message=decision.message or "정책에 의해 거부되었습니다.")
 
         req = self.request
+        servers: dict[str, Any] = dict(req.mcp_servers)
+        if req.org_tools:
+            servers[ORG_SERVER] = self._org_server()
         return ClaudeAgentOptions(
             cwd=str(req.cwd),
             cli_path=self.runtime.cli_path(),
@@ -121,7 +126,11 @@ class ClaudeCodeRun:
             # 사용자 전역 설정의 allow 규칙이 앱 승인 절차를 건너뛰지 않도록 프로젝트 설정만 읽는다.
             setting_sources=list(req.setting_sources),  # type: ignore[arg-type]
             # 에이전트에게 허용된 MCP 서버만 붙인다(strict: 사용자·프로젝트 설정의 다른 서버는 무시).
-            mcp_servers=dict(req.mcp_servers),
+            mcp_servers=servers,
+            # 위임 도구는 하위 에이전트 작업이 끝날 때까지 기다린다(수 분) → MCP 도구 타임아웃을 늘린다.
+            env={"MCP_TOOL_TIMEOUT": str(int((req.approval_timeout_s + 3600) * 1000))}
+            if req.org_tools
+            else {},
             strict_mcp_config=True,
             plugins=[{"type": "local", "path": p} for p in req.plugin_paths],
             skills=list(req.skills),
@@ -136,6 +145,19 @@ class ClaudeCodeRun:
                 ]
             },
         )
+
+    def _org_server(self) -> Any:
+        from claude_agent_sdk import create_sdk_mcp_server, tool
+
+        sdk_tools = []
+        for org_tool in self.request.org_tools:
+
+            async def call(args: dict[str, Any], _handler: Any = org_tool.handler) -> dict[str, Any]:
+                text = await _handler(args)
+                return {"content": [{"type": "text", "text": text}]}
+
+            sdk_tools.append(tool(org_tool.name, org_tool.description, org_tool.input_schema)(call))
+        return create_sdk_mcp_server(ORG_SERVER, "1.0.0", sdk_tools)
 
     async def events(self) -> AsyncIterator[RuntimeEvent]:
         from claude_agent_sdk import ClaudeSDKClient
