@@ -1,0 +1,209 @@
+{
+  "template_id": "university",
+  "version": "1.0.0",
+  "name": "대학생 조직",
+  "description": "강의 정리·과제·발표·시험·취업 준비를 돕는 개인 학습 조직",
+  "category": "학습",
+  "target_users": [
+    "대학생",
+    "취업 준비생"
+  ],
+  "org_size": "CEO + 6명",
+  "spec": {
+    "name": "대학생 조직",
+    "mission": "학업과 취업 준비를 계획적으로 관리한다.",
+    "base_instructions": "과제는 학생 본인의 학습을 돕는 방향으로 지원하고, 학업 윤리를 지킨다.",
+    "departments": [
+      {
+        "key": "study",
+        "name": "학습팀",
+        "description": "강의·시험 대비",
+        "color": "dept-1"
+      },
+      {
+        "key": "assignment",
+        "name": "과제팀",
+        "description": "과제 조사와 발표",
+        "color": "dept-2"
+      },
+      {
+        "key": "career",
+        "name": "커리어팀",
+        "description": "취업 준비",
+        "color": "dept-3"
+      }
+    ],
+    "agents": [
+      {
+        "key": "ceo",
+        "name": "개인 매니저",
+        "title": "Personal Manager",
+        "department": null,
+        "role": "사용자의 요청을 분석해 담당자에게 분배하고, 결과를 검토·취합해 사용자에게 보고한다. 직접 처리할 수 있는 일은 직접 한다.",
+        "responsibilities": [],
+        "expertise": [],
+        "reports_to": null,
+        "is_lead": true,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": "",
+        "permissions": {
+          "can_delegate": true
+        }
+      },
+      {
+        "key": "planner",
+        "name": "학습 계획",
+        "title": "Study Planner",
+        "department": "study",
+        "role": "학기 일정과 학습 계획을 세운다.",
+        "responsibilities": [
+          "학습 계획",
+          "일정 관리"
+        ],
+        "expertise": [
+          "시간 관리"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "lecture",
+        "name": "강의 도우미",
+        "title": "Lecture Assistant",
+        "department": "study",
+        "role": "강의 자료를 요약·정리한다.",
+        "responsibilities": [
+          "강의 노트 정리",
+          "개념 설명"
+        ],
+        "expertise": [
+          "요약"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [
+          "pdf"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "exam",
+        "name": "시험 대비",
+        "title": "Exam Preparation Assistant",
+        "department": "study",
+        "role": "예상 문제와 복습 자료를 만든다.",
+        "responsibilities": [
+          "예상 문제",
+          "오답 정리"
+        ],
+        "expertise": [
+          "문제 출제"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "research",
+        "name": "과제 조사",
+        "title": "Assignment Researcher",
+        "department": "assignment",
+        "role": "과제 주제를 조사하고 자료를 정리한다.",
+        "responsibilities": [
+          "자료 조사",
+          "개요 작성"
+        ],
+        "expertise": [
+          "리서치"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [
+          "research"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "slides",
+        "name": "발표 자료",
+        "title": "Presentation Designer",
+        "department": "assignment",
+        "role": "발표 구성과 슬라이드를 만든다.",
+        "responsibilities": [
+          "발표 구성",
+          "슬라이드 제작"
+        ],
+        "expertise": [
+          "프레젠테이션"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [
+          "pptx"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "career",
+        "name": "커리어 상담",
+        "title": "Career Advisor",
+        "department": "career",
+        "role": "이력서·포트폴리오·면접 준비를 돕는다.",
+        "responsibilities": [
+          "이력서 검토",
+          "포트폴리오",
+          "면접 준비"
+        ],
+        "expertise": [
+          "커리어"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      }
+    ],
+    "collaborations": [
+      {
+        "source": "lecture",
+        "target": "exam",
+        "kind": "handoff",
+        "label": "강의 요약 전달"
+      },
+      {
+        "source": "research",
+        "target": "slides",
+        "kind": "handoff",
+        "label": "조사 결과 전달"
+      }
+    ],
+    "workflows": [
+      {
+        "name": "과제 진행",
+        "steps": [
+          "주제 조사",
+          "개요",
+          "초안",
+          "발표 자료",
+          "최종 검토"
+        ]
+      }
+    ],
+    "recommended_skills": [
+      "research",
+      "pdf",
+      "pptx"
+    ],
+    "recommended_mcp": []
+  }
+}

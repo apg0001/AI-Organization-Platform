@@ -1,0 +1,228 @@
+{
+  "template_id": "research",
+  "version": "1.0.0",
+  "name": "연구 조직",
+  "description": "선행연구 조사부터 실험 설계·데이터 분석·논문 작성까지 연구 과정을 나누는 조직",
+  "category": "연구",
+  "target_users": [
+    "대학원생",
+    "연구원",
+    "연구실"
+  ],
+  "org_size": "CEO + 6명",
+  "spec": {
+    "name": "연구 조직",
+    "mission": "연구 질문에 근거 있는 답을 찾고 재현 가능한 결과와 문서를 남긴다.",
+    "base_instructions": "모든 주장에는 출처를 붙인다. 확인하지 못한 내용은 추정이라고 밝힌다.",
+    "departments": [
+      {
+        "key": "survey",
+        "name": "조사팀",
+        "description": "문헌 조사와 연구 주제 정리",
+        "color": "dept-1"
+      },
+      {
+        "key": "experiment",
+        "name": "실험팀",
+        "description": "실험 설계와 데이터 분석",
+        "color": "dept-2"
+      },
+      {
+        "key": "writing",
+        "name": "작성팀",
+        "description": "논문 작성과 검토",
+        "color": "dept-3"
+      }
+    ],
+    "agents": [
+      {
+        "key": "ceo",
+        "name": "연구 책임자",
+        "title": "Research Director",
+        "department": null,
+        "role": "사용자의 요청을 분석해 담당자에게 분배하고, 결과를 검토·취합해 사용자에게 보고한다. 직접 처리할 수 있는 일은 직접 한다.",
+        "responsibilities": [],
+        "expertise": [],
+        "reports_to": null,
+        "is_lead": true,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": "",
+        "permissions": {
+          "can_delegate": true
+        }
+      },
+      {
+        "key": "lit",
+        "name": "문헌 조사",
+        "title": "Literature Researcher",
+        "department": "survey",
+        "role": "논문을 검색하고 선행연구를 요약·비교한다.",
+        "responsibilities": [
+          "논문 검색",
+          "선행연구 요약",
+          "인용 정리"
+        ],
+        "expertise": [
+          "학술 검색",
+          "요약"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [
+          "research",
+          "pdf"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "analyst",
+        "name": "연구 분석",
+        "title": "Research Analyst",
+        "department": "survey",
+        "role": "연구 주제와 가설을 구체화한다.",
+        "responsibilities": [
+          "연구 질문 정의",
+          "가설 수립"
+        ],
+        "expertise": [
+          "연구 방법론"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "planner",
+        "name": "실험 설계",
+        "title": "Experiment Planner",
+        "department": "experiment",
+        "role": "실험 절차·변수·평가 지표를 설계한다.",
+        "responsibilities": [
+          "실험 설계",
+          "평가 지표 정의"
+        ],
+        "expertise": [
+          "실험 설계"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "data",
+        "name": "데이터 분석",
+        "title": "Data Analyst",
+        "department": "experiment",
+        "role": "데이터를 정리·분석하고 그림을 만든다.",
+        "responsibilities": [
+          "데이터 정리",
+          "통계 분석",
+          "시각화"
+        ],
+        "expertise": [
+          "Python",
+          "통계"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [
+          "xlsx"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "writer",
+        "name": "논문 작성",
+        "title": "Paper Writer",
+        "department": "writing",
+        "role": "연구 결과를 논문 형식으로 정리한다.",
+        "responsibilities": [
+          "초안 작성",
+          "구성 정리"
+        ],
+        "expertise": [
+          "학술 글쓰기"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [
+          "docx"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "reviewer",
+        "name": "검토",
+        "title": "Reviewer",
+        "department": "writing",
+        "role": "논리·방법론·인용의 오류를 검토한다.",
+        "responsibilities": [
+          "원고 검토",
+          "재현성 점검"
+        ],
+        "expertise": [
+          "비판적 검토"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      }
+    ],
+    "collaborations": [
+      {
+        "source": "lit",
+        "target": "analyst",
+        "kind": "handoff",
+        "label": "선행연구 요약 전달"
+      },
+      {
+        "source": "planner",
+        "target": "data",
+        "kind": "handoff",
+        "label": "실험 설계 전달"
+      },
+      {
+        "source": "data",
+        "target": "writer",
+        "kind": "handoff",
+        "label": "분석 결과 전달"
+      },
+      {
+        "source": "writer",
+        "target": "reviewer",
+        "kind": "review",
+        "label": "원고 검토 요청"
+      }
+    ],
+    "workflows": [
+      {
+        "name": "연구 주기",
+        "steps": [
+          "선행연구 조사",
+          "연구 질문·가설",
+          "실험 설계",
+          "데이터 분석",
+          "논문 작성",
+          "검토"
+        ]
+      }
+    ],
+    "recommended_skills": [
+      "research",
+      "pdf",
+      "xlsx",
+      "docx"
+    ],
+    "recommended_mcp": []
+  }
+}

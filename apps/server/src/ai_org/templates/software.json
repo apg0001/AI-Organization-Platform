@@ -1,0 +1,260 @@
+{
+  "template_id": "software",
+  "version": "1.0.0",
+  "name": "소프트웨어 개발 조직",
+  "description": "요구사항 분석부터 설계·구현·테스트·리뷰·배포까지 나누는 개발 조직",
+  "category": "개발",
+  "target_users": [
+    "개인 개발자",
+    "개발팀",
+    "스타트업"
+  ],
+  "org_size": "CEO + 7명",
+  "spec": {
+    "name": "소프트웨어 개발 조직",
+    "mission": "요구사항을 안전하게 구현하고 검증된 변경만 반영한다.",
+    "base_instructions": "변경 전에 기존 코드와 테스트를 읽는다. 테스트를 실행하지 않았으면 통과했다고 말하지 않는다.",
+    "departments": [
+      {
+        "key": "product",
+        "name": "기획팀",
+        "description": "요구사항과 설계",
+        "color": "dept-1"
+      },
+      {
+        "key": "dev",
+        "name": "개발팀",
+        "description": "구현",
+        "color": "dept-2"
+      },
+      {
+        "key": "quality",
+        "name": "품질팀",
+        "description": "테스트와 리뷰",
+        "color": "dept-3"
+      },
+      {
+        "key": "ops",
+        "name": "운영팀",
+        "description": "배포와 인프라",
+        "color": "dept-4"
+      }
+    ],
+    "agents": [
+      {
+        "key": "ceo",
+        "name": "프로젝트 매니저",
+        "title": "Project Manager",
+        "department": null,
+        "role": "사용자의 요청을 분석해 담당자에게 분배하고, 결과를 검토·취합해 사용자에게 보고한다. 직접 처리할 수 있는 일은 직접 한다.",
+        "responsibilities": [],
+        "expertise": [],
+        "reports_to": null,
+        "is_lead": true,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": "",
+        "permissions": {
+          "can_delegate": true
+        }
+      },
+      {
+        "key": "planner",
+        "name": "제품 기획",
+        "title": "Product Planner",
+        "department": "product",
+        "role": "요구사항과 수용 기준을 정의한다.",
+        "responsibilities": [
+          "요구사항 정의",
+          "수용 기준"
+        ],
+        "expertise": [
+          "제품 기획"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "architect",
+        "name": "시스템 설계",
+        "title": "System Architect",
+        "department": "product",
+        "role": "시스템 구조와 작업 분해를 설계한다.",
+        "responsibilities": [
+          "아키텍처 설계",
+          "작업 분해"
+        ],
+        "expertise": [
+          "소프트웨어 설계"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": "",
+        "permissions": {
+          "can_delegate": true
+        }
+      },
+      {
+        "key": "frontend",
+        "name": "프론트엔드 개발자",
+        "title": "Frontend Developer",
+        "department": "dev",
+        "role": "웹 UI를 구현한다.",
+        "responsibilities": [
+          "UI 구현",
+          "접근성"
+        ],
+        "expertise": [
+          "React",
+          "TypeScript"
+        ],
+        "reports_to": "architect",
+        "is_lead": false,
+        "recommended_skills": [
+          "frontend-design"
+        ],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "backend",
+        "name": "백엔드 개발자",
+        "title": "Backend Developer",
+        "department": "dev",
+        "role": "API와 데이터 모델을 구현한다.",
+        "responsibilities": [
+          "API 구현",
+          "데이터 모델"
+        ],
+        "expertise": [
+          "Python",
+          "SQL"
+        ],
+        "reports_to": "architect",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "qa",
+        "name": "QA 엔지니어",
+        "title": "QA Engineer",
+        "department": "quality",
+        "role": "테스트를 작성하고 실행한다.",
+        "responsibilities": [
+          "테스트 작성",
+          "회귀 검증"
+        ],
+        "expertise": [
+          "테스트 자동화"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [],
+        "instructions": ""
+      },
+      {
+        "key": "reviewer",
+        "name": "코드 리뷰어",
+        "title": "Code Reviewer",
+        "department": "quality",
+        "role": "변경의 정확성·보안·유지보수성을 리뷰한다.",
+        "responsibilities": [
+          "코드 리뷰",
+          "보안 점검"
+        ],
+        "expertise": [
+          "코드 리뷰"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [
+          "github"
+        ],
+        "instructions": ""
+      },
+      {
+        "key": "devops",
+        "name": "데브옵스",
+        "title": "DevOps Engineer",
+        "department": "ops",
+        "role": "빌드·CI·배포를 관리한다.",
+        "responsibilities": [
+          "CI 구성",
+          "배포"
+        ],
+        "expertise": [
+          "Docker",
+          "CI"
+        ],
+        "reports_to": "ceo",
+        "is_lead": false,
+        "recommended_skills": [],
+        "recommended_mcp": [
+          "github"
+        ],
+        "instructions": ""
+      }
+    ],
+    "collaborations": [
+      {
+        "source": "planner",
+        "target": "architect",
+        "kind": "handoff",
+        "label": "요구사항 전달"
+      },
+      {
+        "source": "frontend",
+        "target": "reviewer",
+        "kind": "review",
+        "label": "리뷰 요청"
+      },
+      {
+        "source": "backend",
+        "target": "reviewer",
+        "kind": "review",
+        "label": "리뷰 요청"
+      },
+      {
+        "source": "backend",
+        "target": "qa",
+        "kind": "handoff",
+        "label": "테스트 요청"
+      },
+      {
+        "source": "qa",
+        "target": "devops",
+        "kind": "handoff",
+        "label": "배포 승인 전달"
+      }
+    ],
+    "workflows": [
+      {
+        "name": "기능 개발",
+        "steps": [
+          "요구사항",
+          "설계",
+          "구현",
+          "테스트",
+          "코드 리뷰",
+          "배포"
+        ]
+      }
+    ],
+    "recommended_skills": [
+      "frontend-design",
+      "code-review"
+    ],
+    "recommended_mcp": [
+      "github"
+    ]
+  }
+}
