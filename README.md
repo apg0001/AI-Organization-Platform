@@ -116,6 +116,7 @@ cd apps/server && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]' && 
 ```bash
 cd apps/server && .venv/bin/ruff check src tests && .venv/bin/ruff format --check src tests && .venv/bin/mypy && .venv/bin/pytest
 cd ../.. && npm run typecheck && npm test && npm run build
+npm run e2e        # 브라우저 E2E(Playwright, 시스템 Chrome, 테스트용 가짜 런타임 — Claude 사용량 없음)
 ```
 
 [docs/TESTING.md](docs/TESTING.md)

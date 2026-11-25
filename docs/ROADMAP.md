@@ -27,7 +27,6 @@
 ## 다음 작업(우선순위)
 
 1. Phase 5 다음: 선행 작업 스케줄링, 비동기 위임, 검토 거절 시 재작업 — [AGENT_ORCHESTRATION.md](AGENT_ORCHESTRATION.md).
-3. 웹 컴포넌트 테스트(Composer 명령 해석·멘션, 설계 화면 흐름) 확대, E2E(Playwright) 도입 검토.
 4. Alembic 도입(스키마 변경 전).
 5. 다중 사용자(AUTH-3) — 조직·대화 소유 범위.
 

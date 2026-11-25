@@ -109,3 +109,15 @@ def test_timestamps_are_utc_with_offset(client: TestClient) -> None:
     org = client.post("/api/v1/organizations", json={"name": "TZ"}).json()
     assert org["created_at"].endswith(("Z", "+00:00"))
     assert client.get("/api/v1/workspace").json()["activity"][0]["created_at"].endswith(("Z", "+00:00"))
+
+
+def test_fake_runtime_is_opt_in(settings: Settings) -> None:
+    from dataclasses import replace
+
+    from ai_org.main import create_app
+
+    with TestClient(
+        create_app(replace(settings, runtime_override="fake")), base_url="http://127.0.0.1:8000"
+    ) as c:
+        claude = c.get("/api/v1/system/info").json()["runtimes"][0]
+        assert claude["version"] == "fake" and "가짜" in claude["name"]

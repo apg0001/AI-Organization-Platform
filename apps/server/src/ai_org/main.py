@@ -34,6 +34,10 @@ def create_app(
     def default_runtime(runtime_id: str) -> AgentRuntime:
         if runtime_id != "claude-code":
             raise ValueError(f"unsupported runtime: {runtime_id}")
+        if settings.runtime_override == "fake":
+            from ai_org.runtime.fake import FakeRuntime
+
+            return FakeRuntime()
         return ClaudeCodeRuntime(settings.claude_bin)
 
     @asynccontextmanager
