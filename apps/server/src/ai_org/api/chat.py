@@ -446,6 +446,14 @@ async def live(websocket: WebSocket) -> None:
     if host not in settings.allowed_hosts or (origin is not None and origin not in settings.allowed_origins):
         await websocket.close(code=4403)
         return
+    if settings.auth_enabled:
+        from ai_org.services import auth
+
+        with websocket.app.state.session_factory() as db:
+            user = auth.user_for_token(db, websocket.cookies.get(auth.COOKIE))
+        if user is None:
+            await websocket.close(code=4401)
+            return
     await websocket.accept()
     bus = websocket.app.state.runs.bus
     with bus.subscribe() as queue:

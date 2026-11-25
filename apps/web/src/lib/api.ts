@@ -414,6 +414,23 @@ function messageOf(detail: unknown, status: number): string {
   return `요청이 실패했습니다(HTTP ${status}).`;
 }
 
+export interface AuthUser {
+  id: string;
+  username: string;
+  display_name: string;
+  settings: Record<string, unknown>;
+}
+
+export interface AuthStatus {
+  auth_enabled: boolean;
+  setup_required: boolean;
+  authenticated: boolean;
+  user: AuthUser | null;
+}
+
+/** 로그인이 풀리면(401) 인증 게이트가 상태를 다시 확인하도록 알린다. */
+export const UNAUTHORIZED_EVENT = "ai-org:unauthorized";
+
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   const response = await fetch(`/api/v1${path}`, {
     method: init.method ?? "GET",
@@ -424,6 +441,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   const text = await response.text();
   const data: unknown = text ? JSON.parse(text) : null;
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith("/auth/")) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
     const detail = data && typeof data === "object" && "detail" in data ? (data as { detail: unknown }).detail : data;
     throw new ApiError(response.status, messageOf(detail, response.status), detail);
   }

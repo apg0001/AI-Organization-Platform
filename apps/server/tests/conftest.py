@@ -14,7 +14,12 @@ from ai_org.main import create_app
 def settings(tmp_path: Path) -> Settings:
     claude_home = tmp_path / "claude-home" / ".claude"
     claude_home.mkdir(parents=True)
-    return Settings(home=tmp_path / "data", claude_home=claude_home, claude_bin="definitely-not-claude")
+    return Settings(
+        home=tmp_path / "data",
+        claude_home=claude_home,
+        claude_bin="definitely-not-claude",
+        auth_enabled=False,
+    )
 
 
 @pytest.fixture

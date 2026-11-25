@@ -25,6 +25,7 @@ dev = [
 
 [project.scripts]
 ai-org-server = "ai_org.main:run"
+ai-org-admin = "ai_org.cli:main"
 
 [build-system]
 requires = ["setuptools>=75"]

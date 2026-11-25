@@ -63,3 +63,35 @@ class LocalOnlyMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "no-referrer")
         return response
+
+
+AUTH_EXEMPT = {
+    "/api/v1/system/health",
+    "/api/v1/auth/status",
+    "/api/v1/auth/setup",
+    "/api/v1/auth/login",
+    "/api/v1/auth/logout",
+}
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """로그인 보호: /api 아래(문서 포함) 요청은 유효한 세션 쿠키가 있어야 한다.
+
+    WebSocket은 엔드포인트(api/chat.py live)에서 같은 방식으로 검사한다.
+    """
+
+    def __init__(self, app: ASGIApp, enabled: bool) -> None:
+        super().__init__(app)
+        self.enabled = enabled
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        path = request.url.path
+        if self.enabled and path.startswith("/api") and path not in AUTH_EXEMPT:
+            from ai_org.services import auth
+
+            with request.app.state.session_factory() as db:
+                user = auth.user_for_token(db, request.cookies.get(auth.COOKIE))
+            if user is None:
+                return JSONResponse({"detail": "로그인이 필요합니다."}, status_code=401)
+            request.state.user_id = user.id
+        return await call_next(request)

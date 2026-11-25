@@ -10,7 +10,7 @@
   - **Origin 허용 목록**(:3000·:8000) — 다른 웹사이트에서 온 요청(CSRF) 차단. WebSocket도 같은 검사(4403).
   - 상태 변경 요청은 JSON만(업로드 경로만 multipart) — 단순 폼 CSRF 차단.
   - `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`.
-- 한계: 같은 컴퓨터의 다른 프로세스·다른 OS 사용자는 API를 호출할 수 있다 → §7 로그인 설계.
+- 같은 컴퓨터의 다른 프로세스·다른 OS 사용자는 로그인 없이 API를 쓸 수 없다(§7, 기본 켬).
 
 ## 2. 파일 접근
 
@@ -52,18 +52,24 @@
 확장자 허용 목록, 매직 바이트 검사, UTF-8 텍스트 검사, 20MB·10개 제한, 파일 이름 정리, 초안 24시간 후 정리, 대화 삭제 시 삭제.
 첨부는 실행 시 읽기 허용 폴더(add_dirs)로만 노출된다.
 
-## 7. 인증·사용자 관리(설계, Planned)
+## 7. 인증·사용자 관리
 
-현재는 **로컬 단일 사용자 모드**다(§1의 네트워크 경계가 보호). 다음 단계 설계:
+**구현(로컬 단일 사용자 모드, 기본 켬)** — `services/auth.py`, `api/auth.py`, `security.AuthMiddleware`
 
-| 항목 | 설계 |
+| 항목 | 내용 |
 |---|---|
-| 로컬 계정 | 첫 실행 시 관리자 계정 생성. 비밀번호는 argon2id 해시(평문 저장 금지) |
-| 세션 | HttpOnly·SameSite=Strict 쿠키, 서버 측 세션 테이블(토큰은 해시로 저장), 만료·로그아웃 |
-| 분리 | `AuthProvider` 인터페이스(local·oauth)로 앱 인증을 분리. **앱 로그인과 Claude Code 인증은 별개** — Claude Code는 CLI 로그인을 그대로 쓴다 |
-| 다중 사용자 | `users`·`memberships(user, organization, role)` 추가, 조직·프로젝트·대화 조회에 소유 범위 적용, 사용자별 대화 기록 |
-| OAuth | GitHub/Google 확장 지점(Agent Office의 OAuth 흐름 참고, 상태값·PKCE) |
-| 사용자 설정 | 테마·기본 조직·알림 |
+| 첫 실행 | 계정이 없으면 웹이 '계정 만들기' 화면을 보인다. 계정은 하나만 만들 수 있다(이후 `/auth/setup`은 409) |
+| 비밀번호 | scrypt(n=2^14, r=8, p=1, 솔트 16바이트) 해시만 저장. 8자 이상 |
+| 세션 | 무작위 32바이트 토큰을 `ai_org_session` 쿠키(HttpOnly, SameSite=Strict, Path=/)로 주고 DB에는 SHA-256 해시만 저장. 30일, 하루 이상 지나면 연장 |
+| 보호 범위 | `/api` 아래 모든 요청(API 문서 포함)과 WebSocket(close 4401). 예외: 헬스·인증 상태·계정 생성·로그인·로그아웃 |
+| 시도 제한 | 아이디별 연속 실패 5회부터 1초·2초·4초… 최대 5분 대기(429). 없는 아이디도 같은 비용으로 검증 |
+| 비밀번호 변경 | 현재 비밀번호 확인 후 변경, 다른 브라우저 세션은 끊는다 |
+| 계정 초기화 | `apps/server/.venv/bin/ai-org-admin reset-auth` — 계정·세션만 지운다(조직·대화 유지) |
+| 끄기 | `AI_ORG_AUTH=off`(테스트·단일 사용자 전용 컴퓨터). 끄면 루프백·Host·Origin 검사만 남는다 |
+| 분리 | 앱 로그인과 Claude Code 인증은 별개다. 에이전트는 CLI에 로그인된 Claude Code를 쓴다 |
+
+**Planned(다중 사용자)**: `memberships(user, organization, role)`, 조직·프로젝트·대화 조회에 소유 범위 적용, 사용자별 대화 기록,
+`AuthProvider` 확장으로 OAuth(GitHub/Google, 상태값·PKCE). 현재 데이터 모델의 조직·대화에는 소유자 열이 없다.
 
 ## 8. 안정성
 

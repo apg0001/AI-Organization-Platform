@@ -5,7 +5,8 @@
 
 ## 공통 규칙
 
-- **인증**: 없음(로컬 단일 사용자). 대신 모든 요청에 다음을 강제한다([SECURITY.md](SECURITY.md)).
+- **인증**: 로그인 세션 쿠키 `ai_org_session`(기본 켬, `AI_ORG_AUTH=off`로 끔). 없거나 만료면 `401`.
+  예외: `/system/health`, `/auth/status|setup|login|logout`. WebSocket은 close 4401. 그 밖에 모든 요청에 다음을 강제한다([SECURITY.md](SECURITY.md)).
   - `Host`가 `127.0.0.1`·`localhost`·`[::1]`이 아니면 `403 host not allowed`
   - `Origin`이 있으면 `http://{127.0.0.1|localhost}:{3000|8000}`이 아니면 `403 origin not allowed`
   - 본문이 있는 POST/PUT/PATCH/DELETE는 `application/json`이어야 함(`/attachments`만 `multipart/form-data`) — 아니면 `415`
@@ -15,10 +16,23 @@
 | 코드 | 의미 |
 |---|---|
 | 400/422 | 입력 검증 실패, 규칙 위반(순환 보고, 범위 밖 경로, 잘못된 명세) |
-| 403 | Host/Origin 거부, 등록 경로 밖 접근 |
+| 401 | 로그인 필요(세션 없음·만료) |
+| 403 | Host/Origin 거부, 등록 경로 밖 접근, 현재 비밀번호 불일치 |
 | 404 | 대상 없음 또는 다른 조직 소속 |
 | 409 | 중복, 이미 처리됨, 실행 중 충돌(같은 에이전트 응답 중, 실행 중 적용) |
 | 413/415 | 첨부 크기 초과 / 형식 불일치 |
+| 429 | 로그인 시도 제한 |
+
+## 인증
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| GET | `/auth/status` | `{auth_enabled, setup_required, authenticated, user}` |
+| POST | `/auth/setup` | 첫 계정 `{username, password(8자+), display_name?}` → 201 + 세션 쿠키. 계정이 있으면 409 |
+| POST | `/auth/login` | `{username, password}` → 세션 쿠키. 실패 401, 시도 제한 429 |
+| POST | `/auth/logout` | 세션 삭제, 쿠키 삭제(204) |
+| PATCH | `/auth/me` | `{display_name?, settings?}` 사용자 설정 |
+| POST | `/auth/password` | `{current_password, new_password}` → 204, 다른 세션 종료 |
 
 ## 시스템
 

@@ -10,14 +10,16 @@ from fastapi import FastAPI
 from sqlalchemy import select
 
 from ai_org import __version__
+from ai_org.api import auth as auth_api
 from ai_org.api import chat, designs, organizations, projects, system
 from ai_org.config import Settings
 from ai_org.db import init_db, make_engine, session_factory
 from ai_org.models import Attachment
 from ai_org.runtime.base import AgentRuntime
 from ai_org.runtime.claude_code import ClaudeCodeRuntime
-from ai_org.security import LocalOnlyMiddleware
+from ai_org.security import AuthMiddleware, LocalOnlyMiddleware
 from ai_org.services import attachments as att
+from ai_org.services.auth import LoginThrottle
 from ai_org.services.bus import EventBus
 from ai_org.services.runs import RunManager
 
@@ -63,12 +65,16 @@ def create_app(
         redoc_url=None,
     )
     app.state.settings = settings
+    app.state.login_throttle = LoginThrottle()
+    # 미들웨어는 나중에 추가한 것이 바깥이다: Host·Origin 검사(LocalOnly) → 로그인 검사(Auth) 순서로 거친다.
+    app.add_middleware(AuthMiddleware, enabled=settings.auth_enabled)
     app.add_middleware(
         LocalOnlyMiddleware,
         allowed_hosts=settings.allowed_hosts,
         allowed_origins=settings.allowed_origins,
         multipart_paths={"/api/v1/attachments"},
     )
+    app.include_router(auth_api.router)
     app.include_router(system.router)
     app.include_router(organizations.router)
     app.include_router(projects.router)

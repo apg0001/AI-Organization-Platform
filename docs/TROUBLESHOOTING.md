@@ -2,6 +2,8 @@
 
 | 증상 | 원인·해결 |
 |---|---|
+| 비밀번호를 잊음 | `apps/server/.venv/bin/ai-org-admin reset-auth`(조직·대화는 유지) 후 웹에서 새 계정 생성 |
+| 로그인 시 "시도가 너무 많습니다" | 연속 실패로 잠시 대기 중. 안내된 초 뒤에 다시 시도 |
 | 사이드바에 "Claude Code를 찾지 못함" | 백엔드 프로세스의 PATH에 `claude`가 없다. `which claude` 확인, 또는 `AI_ORG_CLAUDE_BIN=/절대/경로/claude` |
 | 응답이 `error`로 끝남 | 메시지의 오류 문구 확인. CLI 로그인 만료면 터미널에서 `claude` 실행 후 로그인. 서버 로그 확인 |
 | 과금 방식이 예상과 다름 | `ANTHROPIC_API_KEY`가 환경에 있으면 CLI 로그인 대신 API 키를 쓴다. 서버를 띄우는 셸에서 `unset ANTHROPIC_API_KEY` |

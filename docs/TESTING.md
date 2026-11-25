@@ -21,6 +21,9 @@ CI(`.github/workflows/ci.yml`)가 같은 검사를 돌리고 `CI Gate` 하나로
 | test_security_system.py | Host·Origin·폼 거부, 런타임 감지, Capability 비밀 비노출, 프로젝트 경로 제한(심볼릭 링크), UTC 시각 |
 | test_chat.py | 가짜 런타임으로: 라우팅(CEO·팀·멘션·@All), 스트리밍 이벤트, resume, 승인 허용·거부, 정책 거부, 범위 밖 경로, 중지, 명령 12종, 첨부 검증·전달·삭제, 컨텍스트 검증 |
 | test_policy.py | 기본 권한, 읽기 전용 명령도 승인, 삭제 탐지, 위임·MCP, 활동 분류 |
+| test_auth.py | 계정 생성·로그인·로그아웃, 비밀번호·토큰 해시 저장, WebSocket 보호, 시도 제한, 비밀번호 변경 시 다른 세션 종료, 끈 모드 |
+| test_delegation.py | 위임·보고, 조직도 밖 거부, 권한 없으면 도구 없음, 협업 순환 거부, 위임 승인, 동시 실행 한도 1 교착 없음 |
+| test_mcp_runtime.py | 허용된 MCP·Plugin만 실행에 전달, 비밀 비노출, MCP 승인 묶음, `claude mcp list` 파싱 |
 | test_designs.py | 템플릿 미리보기 후 적용, 설계 대화의 단일 명세 갱신·권한 제안 격리·resume, 잘못된 AI 명세 거부, 직접 편집 검증, 이력·복원, 설계자 도구 허용 범위 |
 
 가짜 런타임(`tests/test_chat.py::FakeRuntime`)은 실제 런타임처럼 도구 단계에서 권한 콜백을 부른다.
@@ -30,7 +33,7 @@ CI(`.github/workflows/ci.yml`)가 같은 검사를 돌리고 `CI Gate` 하나로
 자동 테스트는 Claude 사용량을 쓰지 않는다. 런타임을 바꾸면 임시 데이터 폴더로 서버를 띄우고 확인한다:
 
 ```bash
-AI_ORG_HOME=$(mktemp -d) apps/server/.venv/bin/uvicorn ai_org.main:app --port 8011
+AI_ORG_AUTH=off AI_ORG_HOME=$(mktemp -d) apps/server/.venv/bin/uvicorn ai_org.main:app --port 8011
 # 1) 조직 생성 → 대화 → 짧은 메시지: 응답 done
 # 2) CEO에 allow_shell + require_approval:[shell] → "echo 실행" → 승인 요청 발생 → 허용 → 출력
 # 3) 설계 초안 → 설계 메시지 2턴 → spec 변경·맥락 유지

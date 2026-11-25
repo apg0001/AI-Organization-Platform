@@ -13,7 +13,7 @@
 | Phase 5 | 오케스트레이션(CEO 자동 분배, 에이전트 간 메시지, 검토·재작업) | Tested — 위임·검토 요청 도구, 작업 트리, 순환·깊이 제한, 실제 Claude 검증. 선행 작업·자동 재작업 Planned |
 | Phase 6 | 사무실 시각화 | Implemented — 상태·활동 구역 이동. 업무 전달 애니메이션 Planned |
 | Phase 7 | 프로젝트 관리 | Tested — 탐색·등록·Git 상태 |
-| Phase 8 | UX·튜토리얼·로그인·데스크톱 패키징(Tauri) | Planned |
+| Phase 8 | UX·튜토리얼·로그인·데스크톱 패키징(Tauri) | In Progress — 로컬 계정 로그인 Tested, 튜토리얼·라이트 테마·패키징 Planned |
 
 ## 실제 Claude Code로 검증한 것(2026-11-25, Claude Code 2.1.326, Raspberry Pi aarch64)
 
@@ -29,10 +29,9 @@
 1. Phase 5 다음: 선행 작업 스케줄링, 비동기 위임, 검토 거절 시 재작업 — [AGENT_ORCHESTRATION.md](AGENT_ORCHESTRATION.md).
 3. 웹 컴포넌트 테스트(Composer 명령 해석·멘션, 설계 화면 흐름) 확대, E2E(Playwright) 도입 검토.
 4. Alembic 도입(스키마 변경 전).
-5. 로그인(AUTH-2) — 여러 OS 사용자가 쓰는 컴퓨터 대응.
+5. 다중 사용자(AUTH-3) — 조직·대화 소유 범위.
 
 ## 보류·알려진 제한
 
 - 셸 명령의 정적 경로는 검사하지만 변수 확장·명령 치환·스크립트 내부 경로는 알 수 없다(SECURITY.md). 셸 허용 시 승인 유지를 권장한다.
-- 같은 컴퓨터의 다른 프로세스는 로컬 API를 호출할 수 있다(로그인 전).
 - 사무실 캐릭터의 활동 구역은 최근 도구 분류 이벤트를 따르며, 새로고침 직후에는 상태만으로 정한다.
