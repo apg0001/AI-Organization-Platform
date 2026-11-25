@@ -54,7 +54,7 @@ import { TaskStatus } from "@/features/dashboard/DashboardPage";
 
 import { Composer, type SendPayload } from "./Composer";
 import { LiveDock, type Unseen } from "./LiveDock";
-import { dockItems, showDock } from "./liveDock";
+import { dockItems, showDock } from "./dockState";
 import { ACTIVITY_LABELS, MessageView } from "./Messages";
 
 const PANEL_KEY = "ai-org.command.panel";

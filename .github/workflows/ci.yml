@@ -41,6 +41,11 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+      - name: 대소문자만 다른 파일·모듈 이름 검사(macOS·Windows에서 충돌)
+        # import는 확장자 없이 풀리므로 .ts/.tsx/.js/.jsx를 떼고 비교한다(LiveDock.tsx ↔ liveDock.ts 같은 충돌).
+        run: |
+          dupes=$(git ls-files | sed -E 's/\.(tsx?|jsx?|mjs|cjs)$//' | tr '[:upper:]' '[:lower:]' | sort | uniq -d)
+          if [ -n "$dupes" ]; then echo "대소문자만 다른 파일·모듈: $dupes"; exit 1; fi
       - run: npm ci
       - run: npm run typecheck
       - run: npm test

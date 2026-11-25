@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ActivityEntry, ChatMessage } from "@/lib/api";
 
-import { dockItems, lastLine, showDock } from "./liveDock";
+import { dockItems, lastLine, showDock } from "./dockState";
 
 const msg = (id: string, status: ChatMessage["status"], content = "", agent = `agent-${id}`): ChatMessage => ({
   id,
