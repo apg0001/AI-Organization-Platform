@@ -1,0 +1,16 @@
+# 변경 기록
+
+형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따르고, 버전은 SemVer를 따른다.
+
+## [Unreleased]
+
+### 추가
+- 프로젝트 골격: FastAPI + SQLite 백엔드, React 19 + Vite + Tailwind v4 웹, 로컬 전용 보안 미들웨어.
+- 조직 관리: 조직·부서·에이전트·협업 관계 CRUD, 순환 보고 방지, CEO 1명 규칙.
+- 조직 설계(Organization Builder): 버전 있는 JSON 템플릿 6종, 설계 초안(단일 설계 상태), 설계 담당 Claude와의 대화형 설계(구조화 출력), AI 권한 확대 제안의 사용자 수락 절차, 적용 전 검토, 변경 이력·되돌리기.
+- Claude Code 런타임: 공식 Agent SDK로 사용자의 CLI 실행, 스트리밍, 세션 이어가기(resume), 중지, PreToolUse 훅 기반 권한 정책과 사용자 승인.
+- 채팅: CEO·팀·개별 에이전트 대화, @멘션·@All, 슬래시 명령 12종(Command Registry), 파일 첨부(검증·진행률), 컨텍스트(경로·에이전트·작업 결과·GitHub·Skill), WebSocket 실시간 이벤트.
+- 프로젝트 관리: 탐색 경로 등록·탐색, 프로젝트 등록, Git 상태(읽기 전용).
+- 기능 관리: Skills·MCP·Plugins 읽기 전용 탐색(비밀 값 제외).
+- 아이소메트릭 사무실: Agent Office 렌더러 이식, 조직 에이전트 상태로 구동.
+- 디자인 시스템과 문서 일체, Git 규칙·템플릿, CI Gate.
