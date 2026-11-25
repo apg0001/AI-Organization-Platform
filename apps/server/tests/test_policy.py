@@ -85,3 +85,30 @@ def test_delete_outside_scope_asks_even_when_delete_allowed() -> None:
     perms = AgentPermissions(allow_shell=True, allow_file_delete=True, require_approval=[])
     assert policy.decide(perms, "Bash", {"command": "rm -rf build"}, ROOT).action == "allow"
     assert policy.decide(perms, "Bash", {"command": "rm -rf ~/Documents"}, ROOT).action == "ask"
+
+
+def test_shell_path_false_positives_from_dogfooding(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    (root / "apps" / "server").mkdir(parents=True)
+    (root / "docs").mkdir()
+    roots = [root]
+    perms = AgentPermissions(allow_shell=True, require_approval=[])
+    # 검색어는 경로가 아니다.
+    assert policy.decide(perms, "Bash", {"command": 'grep -rn "/status" docs'}, roots).action == "allow"
+    assert policy.decide(perms, "Bash", {"command": "git grep -n /status"}, roots).action == "allow"
+    # 같은 명령 안의 cd를 따라 상대 경로 기준을 바꾼다.
+    assert (
+        policy.decide(
+            perms, "Bash", {"command": "cd apps/server && grep -rln status ../../docs"}, roots
+        ).action
+        == "allow"
+    )
+    # 그래도 범위 밖은 승인 요청.
+    assert (
+        policy.decide(perms, "Bash", {"command": "cd apps/server && cat ../../../secret"}, roots).action
+        == "ask"
+    )
+    assert policy.decide(perms, "Bash", {"command": "cd /etc && cat hostname"}, roots).action == "ask"
+    assert (
+        policy.decide(perms, "Bash", {"command": "grep x /home"}, roots).action == "ask"
+    )  # 실제로 있는 경로
