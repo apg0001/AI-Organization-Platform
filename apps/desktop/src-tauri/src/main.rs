@@ -175,6 +175,17 @@ fn main() {
             let port = pick_port();
             let token = format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple());
 
+            // 백엔드를 먼저 띄운다. 트레이 초기화가 느린 환경(D-Bus 응답 대기)에서도 서버 시작이 늦어지지 않게.
+            let (mut events, child) = app
+                .shell()
+                .sidecar("ai-org-server")?
+                .env("AI_ORG_PORT", port.to_string())
+                .env("AI_ORG_WEB_PORT", port.to_string())
+                .env("AI_ORG_DESKTOP_TOKEN", &token)
+                .env("AI_ORG_EXIT_ON_STDIN_EOF", "1")
+                .spawn()?;
+            app.manage(Backend { child: Mutex::new(Some(child)) });
+
             let open = MenuItem::with_id(app, "open", "열기", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "종료", true, None::<&str>)?;
             let status = MenuItem::with_id(app, "status", "로컬 서버 시작 중…", false, None::<&str>)?;
@@ -206,16 +217,6 @@ fn main() {
             }
             let tray = builder.build(app)?;
             let items = TrayItems { tray, status, approvals, usage };
-
-            let (mut events, child) = app
-                .shell()
-                .sidecar("ai-org-server")?
-                .env("AI_ORG_PORT", port.to_string())
-                .env("AI_ORG_WEB_PORT", port.to_string())
-                .env("AI_ORG_DESKTOP_TOKEN", &token)
-                .env("AI_ORG_EXIT_ON_STDIN_EOF", "1")
-                .spawn()?;
-            app.manage(Backend { child: Mutex::new(Some(child)) });
 
             // 백엔드 출력은 앱 로그(표준 오류)로 넘기고, 백엔드가 죽으면 알린다.
             let handle = app.handle().clone();
