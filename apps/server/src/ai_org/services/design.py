@@ -94,6 +94,7 @@ def org_to_spec(db: Session, org: Organization) -> OrgSpec:
                 permissions=AgentPermissions.model_validate(a.permissions or {}),
                 allowed_skills=a.allowed_skills or [],
                 allowed_mcp_servers=a.allowed_mcp_servers or [],
+                allowed_plugins=a.allowed_plugins or [],
                 model=a.model,
             )
             for a in agents
@@ -187,6 +188,7 @@ def apply_spec(
             list(sa.allowed_skills),
             list(sa.allowed_mcp_servers),
         )
+        agent.allowed_plugins = list(sa.allowed_plugins)
         db.flush()
         agent_ids[sa.key], rows[sa.key] = agent.id, agent
     for sa in spec.agents:
@@ -246,7 +248,7 @@ def sanitize_proposal(proposal: OrgSpec, current: OrgSpec) -> tuple[OrgSpec, lis
     """AI 제안을 안전하게 만든다.
 
     - 권한을 넓히는 제안은 permissions에 넣지 않고 permission_suggestion으로 옮긴다(사용자 확인 필요).
-    - allowed_skills/allowed_mcp_servers(실제 허용)는 AI가 바꿀 수 없다. 현재 값을 유지한다.
+    - allowed_skills/allowed_mcp_servers/allowed_plugins(실제 허용)는 AI가 바꿀 수 없다. 현재 값을 유지한다.
     """
     notes: list[str] = []
     by_key = {a.key: a for a in current.agents}
@@ -257,6 +259,7 @@ def sanitize_proposal(proposal: OrgSpec, current: OrgSpec) -> tuple[OrgSpec, lis
         updates: dict[str, Any] = {
             "allowed_skills": base.allowed_skills if base else [],
             "allowed_mcp_servers": base.allowed_mcp_servers if base else [],
+            "allowed_plugins": base.allowed_plugins if base else [],
             "permission_suggestion": None,
         }
         if _broader(agent.permissions, base_perms):
@@ -274,7 +277,7 @@ def recommendation_status(spec: OrgSpec, caps: list[Capability]) -> list[dict[st
     """추천된 Skills/MCP를 실제 탐색 결과와 비교한다. 없는 도구를 있는 것처럼 표시하지 않는다.
 
     status: available(사용 가능, 에이전트 허용됨) | approval_required(설치됨, 허용 전)
-          | install_required(이 컴퓨터에 없음) | unsupported(설치됐지만 아직 런타임 연결 미구현)
+          | install_required(이 컴퓨터에 없음) | unsupported(런타임이 지원하지 않음 — 현재 해당 없음)
     """
     skills = {c.name.lower(): c for c in caps if c.kind == "skill"}
     mcps = {c.name.lower(): c for c in caps if c.kind == "mcp"}
@@ -299,7 +302,12 @@ def recommendation_status(spec: OrgSpec, caps: list[Capability]) -> list[dict[st
             )
         for name in agent.recommended_mcp:
             cap = mcps.get(name.lower())
-            status = "install_required" if cap is None else "unsupported"
+            if cap is None:
+                status = "install_required"
+            elif cap.id in agent.allowed_mcp_servers:
+                status = "available"
+            else:
+                status = "approval_required"
             out.append(
                 {
                     "agent": agent.key,

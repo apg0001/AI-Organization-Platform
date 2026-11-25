@@ -120,9 +120,10 @@ class ClaudeCodeRun:
             add_dirs=[str(p) for p in req.add_dirs],
             # 사용자 전역 설정의 allow 규칙이 앱 승인 절차를 건너뛰지 않도록 프로젝트 설정만 읽는다.
             setting_sources=list(req.setting_sources),  # type: ignore[arg-type]
-            # MCP는 Phase 4에서 에이전트별 허용 목록으로 전달한다. 그전에는 어떤 서버도 붙이지 않는다.
-            mcp_servers={},
+            # 에이전트에게 허용된 MCP 서버만 붙인다(strict: 사용자·프로젝트 설정의 다른 서버는 무시).
+            mcp_servers=dict(req.mcp_servers),
             strict_mcp_config=True,
+            plugins=[{"type": "local", "path": p} for p in req.plugin_paths],
             skills=list(req.skills),
             resume=req.resume_session_id,
             max_turns=req.max_turns,

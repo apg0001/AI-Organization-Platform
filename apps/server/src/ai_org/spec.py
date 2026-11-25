@@ -43,6 +43,7 @@ class SpecAgent(BaseModel):
     recommended_mcp: list[str] = Field(default_factory=list, max_length=20)
     allowed_skills: list[str] = Field(default_factory=list)
     allowed_mcp_servers: list[str] = Field(default_factory=list)
+    allowed_plugins: list[str] = Field(default_factory=list)
     model: str | None = None
 
 

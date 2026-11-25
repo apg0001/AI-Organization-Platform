@@ -10,7 +10,7 @@ export type AgentStatus =
   | "failed"
   | "offline";
 
-export type ApprovalGroup = "shell" | "file_write" | "file_delete" | "network" | "delegate";
+export type ApprovalGroup = "shell" | "file_write" | "file_delete" | "network" | "delegate" | "mcp";
 
 export interface AgentPermissions {
   permission_mode: "default" | "acceptEdits" | "plan";
@@ -189,6 +189,12 @@ export interface SystemInfo {
   runtimes: RuntimeInfo[];
 }
 
+export interface McpHealth {
+  name: string;
+  state: "connected" | "needs_auth" | "failed" | "pending_approval" | "disabled" | "unknown" | "error";
+  message: string;
+}
+
 export interface Capability {
   id: string;
   kind: "skill" | "mcp" | "plugin";
@@ -310,6 +316,7 @@ export interface SpecAgent {
   recommended_mcp: string[];
   allowed_skills: string[];
   allowed_mcp_servers: string[];
+  allowed_plugins: string[];
   model: string | null;
 }
 

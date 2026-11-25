@@ -84,7 +84,7 @@ export function BuilderWorkspace() {
       is_lead: false,
       enabled: true,
       permissions: lead
-        ? { ...lead.permissions, allow_shell: false, allow_file_delete: false, can_delegate: false, require_approval: ["shell", "file_write", "file_delete"] }
+        ? { ...lead.permissions, allow_shell: false, allow_file_delete: false, can_delegate: false, require_approval: ["shell", "file_write", "file_delete", "mcp"] }
         : {
             permission_mode: "default",
             file_scope: [],
@@ -92,7 +92,7 @@ export function BuilderWorkspace() {
             allow_network: true,
             allow_file_write: true,
             allow_file_delete: false,
-            require_approval: ["shell", "file_write", "file_delete"],
+            require_approval: ["shell", "file_write", "file_delete", "mcp"],
             can_delegate: false,
           },
       permission_suggestion: null,
@@ -100,6 +100,7 @@ export function BuilderWorkspace() {
       recommended_mcp: [],
       allowed_skills: [],
       allowed_mcp_servers: [],
+      allowed_plugins: [],
       model: null,
     };
     update({ ...spec, agents: [...spec.agents, fresh] });

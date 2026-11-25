@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter
@@ -66,6 +67,24 @@ def workspace(db: DB) -> WorkspaceOverview:
             for e in db.scalars(select(ActivityEvent).order_by(ActivityEvent.created_at.desc()).limit(20))
         ],
     )
+
+
+@router.get("/capabilities/mcp/health")
+async def capabilities_mcp_health(db: DB, settings: AppSettings) -> list[dict[str, str]]:
+    """MCP 연결 점검(`claude mcp list`): 사용자 범위는 홈, 프로젝트 범위는 등록 프로젝트에서."""
+    import asyncio
+
+    from ai_org.services.capabilities import mcp_health
+
+    folders = [Path.home()] + [
+        Path(p) for p in db.scalars(select(Project.path)) if (Path(p) / ".mcp.json").is_file()
+    ]
+    results = await asyncio.gather(*(asyncio.to_thread(mcp_health, settings.claude_bin, f) for f in folders))
+    merged: dict[str, dict[str, str]] = {}
+    for rows in results:
+        for row in rows:
+            merged.setdefault(row["name"], row)
+    return list(merged.values())
 
 
 @router.get("/capabilities")

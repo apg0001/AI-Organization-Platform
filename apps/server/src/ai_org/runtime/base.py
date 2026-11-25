@@ -45,6 +45,9 @@ class RunRequest:
     system_prompt: str | None = None  # 지정하면 Claude Code 기본 프롬프트 대신 이것만 쓴다.
     # 읽을 Claude Code 설정 범위. 기본은 프로젝트 설정만(사용자 전역 allow 규칙이 승인을 건너뛰지 않게).
     setting_sources: tuple[str, ...] = ("project",)
+    # 허용된 MCP 서버 설정({이름: 설정}). strict 모드라 여기 없는 서버는 붙지 않는다.
+    mcp_servers: dict[str, Any] = field(default_factory=dict)
+    plugin_paths: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -38,6 +38,7 @@ from ai_org.runtime.base import AgentRuntime, PermissionDecision, RunRequest
 from ai_org.schemas import AgentPermissions
 from ai_org.services import policy
 from ai_org.services.bus import EventBus
+from ai_org.services.capabilities import resolve_mcp_servers, resolve_plugin_paths
 from ai_org.services.prompting import ContextLines, system_append, user_prompt
 
 GITHUB_REPO = re.compile(r"^[\w.-]+/[\w.-]+$")
@@ -265,6 +266,9 @@ class RunManager:
         )
         resume = thread.session_id if thread is not None and thread.cwd == str(cwd) else None
         skills = tuple(cap.split(":")[-1] for cap in agent.allowed_skills)
+        project_paths = list(db.scalars(select(Project.path)))
+        mcp_servers = resolve_mcp_servers(self.settings.claude_home, project_paths, agent.allowed_mcp_servers)
+        plugin_paths = tuple(resolve_plugin_paths(self.settings.claude_home, agent.allowed_plugins))
         return RunRequest(
             agent_id=agent.id,
             prompt=user_prompt(prompt, ctx, attachments, broadcast=route.broadcast),
@@ -278,6 +282,8 @@ class RunManager:
             resume_session_id=resume,
             max_turns=self.settings.max_turns,
             approval_timeout_s=self.settings.approval_timeout_s,
+            mcp_servers=mcp_servers,
+            plugin_paths=plugin_paths,
         )
 
     def _set_agent_status(self, agent_id: str, status: str, detail: str = "") -> None:

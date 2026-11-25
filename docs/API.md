@@ -28,6 +28,7 @@
 | GET | `/system/info` | 버전, 데이터 폴더, 런타임 감지(`claude --version`) |
 | GET | `/workspace` | 대시보드 묶음: 조직 요약, 프로젝트, 실행 중 에이전트, 최근 작업, 승인 대기, 활동 20건 |
 | GET | `/capabilities` | 탐색한 Skills·MCP·Plugins(비밀 값 제외) |
+| GET | `/capabilities/mcp/health` | `claude mcp list` 연결 점검 → `[{name, state, message}]`(state: connected·needs_auth·failed·pending_approval·disabled·unknown·error) |
 
 ## 조직
 

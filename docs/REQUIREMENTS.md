@@ -35,8 +35,8 @@
 | ORCH-2 | 사용자 지시 위임(`/delegate`) → 작업 기록·실행·결과 | Tested |
 | CAP-1 | Skills·MCP·Plugins 탐색(비밀 제외) | Tested |
 | CAP-2 | 에이전트별 Skills 허용 → 실행에 반영 | Implemented(SDK `skills` 옵션) |
-| CAP-3 | MCP 서버를 에이전트 실행에 연결, 연결 점검 | Planned(Phase 4) |
-| CAP-4 | Plugins 실행 연결, 설치·업데이트 | Planned(Phase 4) |
+| CAP-3 | MCP 서버를 에이전트 실행에 연결, 연결 점검 | Tested(실제 Claude·chrome-devtools-mcp 검증) |
+| CAP-4 | Plugins 실행 연결 | Tested(단위) — 설치·업데이트 UI는 Planned |
 | PRJ-1 | 탐색 경로 등록·탐색·프로젝트 등록·Git 상태 | Tested |
 | PRJ-2 | 프로젝트–조직 연결, 대화별 프로젝트 | Implemented |
 | UI-1 | 대시보드·조직 설계·커맨드 센터·조직·에이전트 상세·프로젝트·기능 관리·사무실 | Implemented |
