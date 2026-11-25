@@ -121,6 +121,11 @@ test("커맨드 센터: 스트리밍 응답·명령·멘션 자동완성·승인
   await expect(chatLog.getByText("가짜 런타임 응답입니다:")).toBeVisible();
   await expect(page.locator("pre code")).toContainText("print('hello e2e')");
 
+  // 경로로 시작하는 메시지는 명령이 아니라 일반 메시지로 보낸다(#67).
+  await input.fill("/tmp/e2e-path 이 폴더 봐 줘");
+  await input.press("Enter");
+  await expect(chatLog.getByText("가짜 런타임 응답입니다:").last()).toContainText("/tmp/e2e-path 이 폴더 봐 줘");
+
   await input.fill("/ag");
   await expect(page.getByRole("listbox", { name: "명령어" }).getByRole("option", { name: /\/agents/ })).toBeVisible();
   await input.press("Enter");

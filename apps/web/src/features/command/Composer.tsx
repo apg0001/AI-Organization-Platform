@@ -26,6 +26,13 @@ const MAX_FILES = 10;
 /** 입력창이 내용에 맞춰 늘어나는 최대 줄 수. 넘으면 입력창 안에서 스크롤한다. */
 export const MAX_LINES = 5;
 
+/**
+ * 명령으로 볼지: 첫 단어가 `/이름`(영문·숫자·-·_만) 꼴일 때만. `/home/me/app 봐 줘`처럼 경로로 시작하면 일반 메시지다.
+ */
+export function isCommandInput(text: string): boolean {
+  return /^\/[\w-]+(\s|$)/.test(text);
+}
+
 /** 내용 높이에 맞춰 늘리되 최대 줄 수에서 멈추고, 넘치면 스크롤을 켠다. */
 export function fitTextarea(el: HTMLTextAreaElement, maxLines = MAX_LINES): void {
   const style = window.getComputedStyle(el);
@@ -180,7 +187,7 @@ export function Composer({
     if (!content || sending || uploading || disabled) return;
     setSending(true);
     try {
-      if (content.startsWith("/")) {
+      if (isCommandInput(content)) {
         const [, name = "", rest = ""] = /^\/([\w-]+)\s*([\s\S]*)$/.exec(content) ?? [];
         const spec = commands.find((c) => c.name === name);
         if (!spec) {
