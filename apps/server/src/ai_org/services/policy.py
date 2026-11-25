@@ -36,36 +36,58 @@ REDIRECT = re.compile(r"^(?:\d?>>?|<|&>)")
 SEGMENT_SPLIT = re.compile(r"&&|\|\||[|;()]")
 
 
-def shell_paths(command: str) -> list[str]:
-    """셸 명령에서 경로로 보이는 인자(절대 경로, ~, .. 포함)를 찾는다. 명령 이름 자리는 제외한다."""
-    found: list[str] = []
+def _is_path_like(arg: str) -> bool:
+    """경로 인자로 볼지.
+
+    `/status` 같은 한 단계짜리 절대 문자열은 실제로 있을 때만 경로로 본다(검색어 오탐 방지).
+    """
+    if arg.startswith("~") or arg == ".." or arg.startswith("../") or "/../" in arg:
+        return True
+    if arg.startswith("/"):
+        parts = [p for p in arg.split("/") if p]
+        return len(parts) >= 2 or Path(arg).exists()
+    return False
+
+
+def shell_paths(command: str, cwd: Path | None = None) -> list[tuple[str, Path | None]]:
+    """셸 명령에서 경로로 보이는 인자와 그 상대 경로의 기준 폴더를 찾는다.
+
+    명령 이름 자리는 제외하고, 같은 명령 안의 `cd <폴더>`를 따라 이후 상대 경로의 기준을 바꾼다
+    (`cd` 대상 자체도 검사 대상이다).
+    """
+    found: list[tuple[str, Path | None]] = []
+    base = cwd
     for segment in SEGMENT_SPLIT.split(command):
         try:
             words = shlex.split(segment, comments=True)
         except ValueError:
             words = segment.split()
-        first = True
-        for word in words:
-            if first and "=" in word and not word.startswith(("/", "~", ".")):
-                continue  # VAR=value 접두사
+        while words and "=" in words[0] and not words[0].startswith(("/", "~", ".")):
+            words = words[1:]  # VAR=value 접두사
+        if not words:
+            continue
+        head, args = words[0], words[1:]
+        if head == "cd" and args and base is not None:
+            target = Path(args[0]).expanduser()
+            found.append((args[0], base))
+            base = (target if target.is_absolute() else base / target).resolve()
+            continue
+        for word in args:
             arg = REDIRECT.sub("", word)
             if "=" in arg and not arg.startswith(("/", "~", ".")):
-                arg = arg.split("=", 1)[1]  # --out=/path, VAR=/path
-            if first:
-                first = False
-                continue  # 실행 파일 이름(/usr/bin/python 등)
-            if arg.startswith(("/", "~")) or arg == ".." or arg.startswith("../") or "/../" in arg:
-                found.append(arg)
+                arg = arg.split("=", 1)[1]  # --out=/path
+            if _is_path_like(arg):
+                found.append((arg, base))
     return found
 
 
 def outside_paths(command: str, roots: list[Path]) -> list[str]:
     out = []
-    for raw in shell_paths(command):
+    for raw, base in shell_paths(command, roots[0]):
         if raw in SAFE_DEVICES:
             continue
         target = Path(raw).expanduser()
-        resolved = target.resolve() if target.is_absolute() else (roots[0] / target).resolve()
+        resolved = target.resolve() if target.is_absolute() else ((base or roots[0]) / target).resolve()
         if not within(resolved, roots):
             out.append(raw)
     return out
