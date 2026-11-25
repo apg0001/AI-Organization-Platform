@@ -339,6 +339,29 @@
   transform-origin: var(--radix-dropdown-menu-content-transform-origin, var(--radix-popover-content-transform-origin, center));
 }
 
+/* 새로 도착한 것: 아래에서 살짝 떠오른다(메시지·업무 전달 기록). 처음 불러온 기록에는 쓰지 않는다. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.message-in,
+.feed-in {
+  animation: rise-in 220ms var(--ease-out);
+}
+
+/* 상태 전환: 아이콘이 바뀔 때 작게 튀어 오른다. */
+@keyframes status-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+.status-in {
+  animation: status-in 200ms var(--ease-out);
+}
+
 /* 마크다운 본문(채팅 응답) */
 .prose-chat {
   font-size: var(--text-base);

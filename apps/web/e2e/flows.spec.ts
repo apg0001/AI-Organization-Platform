@@ -156,6 +156,24 @@ test("프로젝트 등록과 기능 관리·사무실 화면", async ({ page }) 
 
   await page.getByRole("link", { name: "사무실", exact: true }).click();
   await expect(page.locator("canvas")).toBeVisible();
+
+  // 실제 위임 이벤트(task.delegated)가 오면 사무실에 업무 전달 기록이 뜬다(봉투 연출은 캔버스라 글 기록으로 확인).
+  await page.evaluate(async () => {
+    const orgs = (await (await fetch("/api/v1/organizations")).json()) as { id: string }[];
+    const conv = (await (
+      await fetch("/api/v1/conversations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ organization_id: orgs[0]!.id, target_kind: "org" }),
+      })
+    ).json()) as { id: string };
+    await fetch(`/api/v1/conversations/${conv.id}/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "[위임:QA 엔지니어] 확인해 줘", mention_agent_ids: [], mention_all: false, attachment_ids: [] }),
+    });
+  });
+  await expect(page.getByRole("list", { name: "최근 업무 전달" }).getByText("QA 엔지니어")).toBeVisible();
 });
 
 test("로그아웃 후 다시 로그인", async ({ page }) => {

@@ -11,7 +11,7 @@
 | Phase 3 | Claude Code 런타임·세션·이벤트·채팅·승인 | Tested — 실제 Claude 스모크 테스트 통과(아래) |
 | Phase 4 | Capability Manager | Tested — 탐색·허용·실행 연결(Skills·MCP·Plugins)·MCP 연결 점검. 설치 UI·도구 단위 허용 Planned |
 | Phase 5 | 오케스트레이션(CEO 자동 분배, 에이전트 간 메시지, 검토·재작업) | Tested — 위임·검토 요청·작업 계획(선행 작업·병렬·결과 전달·검토 재작업), 작업 트리, 순환·깊이 제한, 실제 Claude 검증 |
-| Phase 6 | 사무실 시각화 | Implemented — 상태·활동 구역 이동. 업무 전달 애니메이션 Planned |
+| Phase 6 | 사무실 시각화 | Tested — 상태·활동 구역 이동, 위임 이벤트의 업무 전달 연출(봉투)·기록(E2E) |
 | Phase 7 | 프로젝트 관리 | Tested — 탐색·등록·Git 상태 |
 | Phase 8 | UX·튜토리얼·로그인·데스크톱 패키징(Tauri) | In Progress — 로컬 계정 로그인 Tested, AI 사용량(Claude·Codex) Tested, 테마 4종·시작 가이드 Tested, 패키징 Planned |
 
