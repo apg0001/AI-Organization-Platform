@@ -27,12 +27,13 @@ class OrgTool:
 
     런타임이 자기 방식(Claude Code는 인프로세스 MCP)으로 노출한다.
 
-    input_schema: {인자 이름: 파이썬 타입}. handler는 인자 dict를 받아 에이전트에게 돌려줄 글을 만든다.
+    input_schema: {인자 이름: 파이썬 타입} 또는 JSON 스키마.
+    handler는 인자 dict를 받아 에이전트에게 돌려줄 글을 만든다.
     """
 
     name: str
     description: str
-    input_schema: dict[str, type]
+    input_schema: dict[str, Any]  # {이름: 파이썬 타입} 또는 완전한 JSON 스키마
     handler: Callable[[dict[str, Any]], Awaitable[str]]
 
 
