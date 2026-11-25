@@ -151,6 +151,7 @@ export interface Approval {
   agent_id: string;
   kind: string;
   summary: string;
+  detail: { tool?: string; target?: string; group?: string | null; reason?: string };
   status: string;
   created_at: string;
 }

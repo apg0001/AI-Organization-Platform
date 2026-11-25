@@ -604,14 +604,14 @@ function useDecide() {
 
 function PendingApprovalBanner({ conversationId }: { conversationId: string }) {
   const { orgId } = useCurrentOrg();
-  const [pending, setPending] = useState<{ id: string; agent_name: string; tool: string; target: string }[]>([]);
+  const [pending, setPending] = useState<{ id: string; agent_name: string; tool: string; target: string; reason?: string }[]>([]);
   const approvals = useApprovals(orgId);
   const decide = useDecide();
   useEffect(
     () =>
       onLive((event) => {
         if (event.type === "approval.requested" && event.conversation_id === conversationId) {
-          const a = event.approval as { id: string; agent_name: string; tool: string; target: string };
+          const a = event.approval as { id: string; agent_name: string; tool: string; target: string; reason?: string };
           setPending((p) => [...p, a]);
         } else if (event.type === "approval.resolved") {
           setPending((p) => p.filter((x) => x.id !== event.approval_id));
@@ -630,6 +630,7 @@ function PendingApprovalBanner({ conversationId }: { conversationId: string }) {
           <span className="min-w-0 flex-1 text-sm">
             <span className="font-medium">{a.agent_name}</span>이(가) <span className="font-medium">{a.tool}</span> 실행 승인을 요청합니다
             {a.target ? <code className="mt-0.5 block truncate font-mono text-xs text-muted">{a.target}</code> : null}
+            {a.reason ? <span className="mt-0.5 block text-xs text-warning">{a.reason}</span> : null}
           </span>
           <Button size="sm" variant="ghost" onClick={() => decide.mutate({ id: a.id, allow: false })}>
             거부
@@ -676,6 +677,7 @@ function ExecutionPanel({ orgId, agents }: { orgId: string; agents: Agent[]; con
               <span className="text-faint"> · {timeAgo(a.created_at)}</span>
             </span>
             <code className="font-mono text-2xs break-all text-muted">{a.summary}</code>
+            {a.detail?.reason ? <span className="text-2xs text-warning">{a.detail.reason}</span> : null}
             <span className="flex justify-end gap-1.5">
               <Button size="sm" variant="ghost" onClick={() => decide.mutate({ id: a.id, allow: false })}>
                 거부

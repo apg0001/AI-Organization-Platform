@@ -5,6 +5,7 @@
 ## [Unreleased]
 
 ### 변경
+- 보안: 셸 명령 안의 작업 폴더 밖 경로를 감지해 사용자 승인을 요구(승인 요청에 사유 표시).
 - 라이선스: Apache License 2.0 적용(LICENSE, NOTICE).
 
 ### 추가

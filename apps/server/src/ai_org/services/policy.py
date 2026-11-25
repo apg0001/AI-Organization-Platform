@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -21,6 +22,54 @@ WRITE_TOOLS = ("Edit", "MultiEdit", "Write", "NotebookEdit")
 NETWORK_TOOLS = ("WebFetch", "WebSearch")
 PATH_KEYS = ("file_path", "notebook_path", "path")
 DELETE_PATTERN = re.compile(r"(^|[\s;&|(])(rm|rmdir|unlink|shred)\s|git\s+clean\b|find\s.*-delete\b")
+
+SAFE_DEVICES = {
+    "/dev/null",
+    "/dev/stdin",
+    "/dev/stdout",
+    "/dev/stderr",
+    "/dev/tty",
+    "/dev/zero",
+    "/dev/urandom",
+}
+REDIRECT = re.compile(r"^(?:\d?>>?|<|&>)")
+SEGMENT_SPLIT = re.compile(r"&&|\|\||[|;()]")
+
+
+def shell_paths(command: str) -> list[str]:
+    """셸 명령에서 경로로 보이는 인자(절대 경로, ~, .. 포함)를 찾는다. 명령 이름 자리는 제외한다."""
+    found: list[str] = []
+    for segment in SEGMENT_SPLIT.split(command):
+        try:
+            words = shlex.split(segment, comments=True)
+        except ValueError:
+            words = segment.split()
+        first = True
+        for word in words:
+            if first and "=" in word and not word.startswith(("/", "~", ".")):
+                continue  # VAR=value 접두사
+            arg = REDIRECT.sub("", word)
+            if "=" in arg and not arg.startswith(("/", "~", ".")):
+                arg = arg.split("=", 1)[1]  # --out=/path, VAR=/path
+            if first:
+                first = False
+                continue  # 실행 파일 이름(/usr/bin/python 등)
+            if arg.startswith(("/", "~")) or arg == ".." or arg.startswith("../") or "/../" in arg:
+                found.append(arg)
+    return found
+
+
+def outside_paths(command: str, roots: list[Path]) -> list[str]:
+    out = []
+    for raw in shell_paths(command):
+        if raw in SAFE_DEVICES:
+            continue
+        target = Path(raw).expanduser()
+        resolved = target.resolve() if target.is_absolute() else (roots[0] / target).resolve()
+        if not within(resolved, roots):
+            out.append(raw)
+    return out
+
 
 Group = Literal["shell", "file_write", "file_delete", "network", "delegate"]
 
@@ -74,8 +123,19 @@ def decide(perms: AgentPermissions, tool: str, tool_input: dict[str, Any], roots
                 return Verdict("deny", group, "허용된 작업 범위 밖의 경로입니다.")
     if group == "shell" and not perms.allow_shell:
         return Verdict("deny", group, "이 에이전트는 셸 명령을 실행할 수 없습니다.")
+    if group in ("shell", "file_delete"):
+        command = tool_input.get("command")
+        escaped = outside_paths(command, roots) if isinstance(command, str) and roots else []
+        if escaped and group == "shell" and perms.allow_shell:
+            # 셸 허용 에이전트라도 작업 범위 밖 경로를 건드리는 명령은 항상 사람이 확인한다.
+            return Verdict("ask", group, "작업 폴더 밖 경로를 참조합니다: " + ", ".join(escaped[:3]))
     if group == "file_delete" and not (perms.allow_shell and perms.allow_file_delete):
         return Verdict("deny", group, "이 에이전트는 파일을 삭제할 수 없습니다.")
+    if group == "file_delete":
+        command = tool_input.get("command")
+        escaped = outside_paths(command, roots) if isinstance(command, str) and roots else []
+        if escaped:
+            return Verdict("ask", group, "작업 폴더 밖 경로를 삭제하려 합니다: " + ", ".join(escaped[:3]))
     if group == "file_write" and not perms.allow_file_write:
         return Verdict("deny", group, "이 에이전트는 파일을 수정할 수 없습니다.")
     if group == "network" and not perms.allow_network:
