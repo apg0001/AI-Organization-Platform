@@ -10,7 +10,7 @@
 | Phase 2 | 조직 관리 + Organization Builder(템플릿·대화형 설계·검토·이력) | Tested — UI 자동 테스트 미작성 |
 | Phase 3 | Claude Code 런타임·세션·이벤트·채팅·승인 | Tested — 실제 Claude 스모크 테스트 통과(아래) |
 | Phase 4 | Capability Manager | Tested — 탐색·허용·실행 연결(Skills·MCP·Plugins)·MCP 연결 점검. 설치 UI·도구 단위 허용 Planned |
-| Phase 5 | 오케스트레이션(CEO 자동 분배, 에이전트 간 메시지, 검토·재작업) | Tested — 위임·검토 요청 도구, 작업 트리, 순환·깊이 제한, 실제 Claude 검증. 선행 작업·자동 재작업 Planned |
+| Phase 5 | 오케스트레이션(CEO 자동 분배, 에이전트 간 메시지, 검토·재작업) | Tested — 위임·검토 요청·작업 계획(선행 작업·병렬·결과 전달·검토 재작업), 작업 트리, 순환·깊이 제한, 실제 Claude 검증 |
 | Phase 6 | 사무실 시각화 | Implemented — 상태·활동 구역 이동. 업무 전달 애니메이션 Planned |
 | Phase 7 | 프로젝트 관리 | Tested — 탐색·등록·Git 상태 |
 | Phase 8 | UX·튜토리얼·로그인·데스크톱 패키징(Tauri) | In Progress — 로컬 계정 로그인 Tested, 튜토리얼·라이트 테마·패키징 Planned |
@@ -30,7 +30,7 @@
 
 ## 다음 작업(우선순위)
 
-1. Phase 5 다음: 선행 작업 스케줄링, 비동기 위임, 검토 거절 시 재작업 — [AGENT_ORCHESTRATION.md](AGENT_ORCHESTRATION.md).
+1. Phase 5 다음: 비동기 위임, 계획 중 사용자 승인 단계 — [AGENT_ORCHESTRATION.md](AGENT_ORCHESTRATION.md).
 4. Alembic 도입(스키마 변경 전).
 5. 다중 사용자(AUTH-3) — 조직·대화 소유 범위.
 

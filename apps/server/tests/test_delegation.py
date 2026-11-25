@@ -60,7 +60,7 @@ def test_ceo_delegates_and_receives_report(api: TestClient, fake: FakeRuntime) -
     msgs = wait_all_done(api, conv["id"])
     # CEO 실행에만 위임 도구가 있고, 시스템 프롬프트에 위임 가능 대상이 있다.
     ceo_req = next(r for r in fake.requests if r.agent_id == ceo["id"])
-    assert {t.name for t in ceo_req.org_tools} == {"delegate_task", "request_review"}
+    assert {t.name for t in ceo_req.org_tools} == {"delegate_task", "request_review", "run_plan"}
     assert (
         "위임 가능한 구성원" in ceo_req.system_prompt_append and "QA 엔지니어" in ceo_req.system_prompt_append
     )
