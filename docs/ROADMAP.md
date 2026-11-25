@@ -13,7 +13,7 @@
 | Phase 5 | 오케스트레이션(CEO 자동 분배, 에이전트 간 메시지, 검토·재작업) | Tested — 위임·검토 요청·작업 계획(선행 작업·병렬·결과 전달·검토 재작업), 작업 트리, 순환·깊이 제한, 실제 Claude 검증 |
 | Phase 6 | 사무실 시각화 | Implemented — 상태·활동 구역 이동. 업무 전달 애니메이션 Planned |
 | Phase 7 | 프로젝트 관리 | Tested — 탐색·등록·Git 상태 |
-| Phase 8 | UX·튜토리얼·로그인·데스크톱 패키징(Tauri) | In Progress — 로컬 계정 로그인 Tested, 튜토리얼·라이트 테마·패키징 Planned |
+| Phase 8 | UX·튜토리얼·로그인·데스크톱 패키징(Tauri) | In Progress — 로컬 계정 로그인 Tested, AI 사용량(Claude·Codex) Tested, 튜토리얼·라이트 테마·패키징 Planned |
 
 ## 실제 Claude Code로 검증한 것(2026-11-25, Claude Code 2.1.326, Raspberry Pi aarch64)
 

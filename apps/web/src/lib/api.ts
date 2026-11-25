@@ -196,6 +196,35 @@ export interface McpHealth {
   message: string;
 }
 
+export interface UsageWindow {
+  id: string;
+  label: string;
+  percent: number;
+  resets_at: string | null;
+  window_minutes: number | null;
+  elapsed_percent: number | null;
+  burn_rate_per_hour: number | null;
+  projected_at_reset: number | null;
+  exhaust_at: string | null;
+  confidence: "learning" | "low" | "high";
+  samples: number;
+}
+
+export interface UsageProvider {
+  id: "claude" | "codex";
+  name: string;
+  state: "ok" | "disabled" | "pending" | "not_logged_in" | "token_expired" | "rate_limited" | "error" | "no_data";
+  plan: string | null;
+  observed_at: string | null;
+  message: string | null;
+  windows: UsageWindow[];
+}
+
+export interface UsagePayload {
+  settings: { claude_enabled: boolean; codex_enabled: boolean; thresholds: number[] };
+  providers: UsageProvider[];
+}
+
 export interface Capability {
   id: string;
   kind: "skill" | "mcp" | "plugin";

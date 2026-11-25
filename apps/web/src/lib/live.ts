@@ -5,6 +5,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
+import { toast } from "sonner";
 
 export interface LiveEvent {
   type: string;
@@ -87,6 +88,13 @@ export function useLiveConnection(): void {
         case "task.updated":
         case "task.delegated":
           void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+          break;
+        case "usage.threshold":
+          toast.warning(String(event.summary ?? "사용량 임계치 도달"));
+          void queryClient.invalidateQueries({ queryKey: ["usage"] });
+          break;
+        case "usage.updated":
+          void queryClient.invalidateQueries({ queryKey: ["usage"] });
           break;
         case "design.updated":
           void queryClient.invalidateQueries({ queryKey: ["design", event.design_id] });

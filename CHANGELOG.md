@@ -5,6 +5,7 @@
 ## [Unreleased]
 
 ### 추가
+- 사용량: Claude·Codex 사용률·초기화 남은 시간·소진 예측·이력 그래프·임계치 알림(GigaCharge 방식, Claude는 사용자가 켤 때만) — `docs/USAGE.md`.
 - 오케스트레이션: 작업 계획 도구 `run_plan` — 선행 작업 순서·병렬 실행·선행 결과 전달·검토 수정 요청 시 재작업(최대 2회)·실패 전파.
 - 문서: 이 플랫폼으로 이 저장소를 개발하는 방법과 첫 실측(`docs/SELF_DEVELOPMENT.md`). `/status`에 실행 중인 에이전트 표시(#23 — 플랫폼 에이전트가 구현).
 - 테스트: Playwright 브라우저 E2E(사용자 여정 6단계), 테스트용 가짜 런타임(`AI_ORG_RUNTIME=fake`), CI E2E 작업.

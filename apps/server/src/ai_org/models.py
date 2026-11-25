@@ -390,3 +390,25 @@ class AuthSession(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
     last_seen_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class UsageSample(Base):
+    """AI 사용량 관측값(사용률 %). 토큰·계정 식별자·오류 문구는 저장하지 않는다. 30일 보관."""
+
+    __tablename__ = "usage_samples"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    provider: Mapped[str] = mapped_column(String(20), index=True)  # claude | codex
+    window_id: Mapped[str] = mapped_column(String(20))  # five_hour | seven_day | primary | secondary
+    percent: Mapped[float] = mapped_column(Float)
+    resets_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    observed_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
+
+
+class AppSetting(Base):
+    """앱 전역 설정(키-값). 사용량 설정 등."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(60), primary_key=True)
+    value: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)

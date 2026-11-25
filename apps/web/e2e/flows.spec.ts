@@ -146,6 +146,11 @@ test("프로젝트 등록과 기능 관리·사무실 화면", async ({ page }) 
   await page.getByRole("tab", { name: /MCP 서버/ }).click();
   await expect(page.getByRole("button", { name: "연결 점검" })).toBeVisible();
 
+  await page.getByRole("link", { name: "사용량" }).click();
+  await expect(page.getByRole("heading", { name: "사용량" })).toBeVisible();
+  await expect(page.getByText("꺼져 있습니다.")).toBeVisible(); // Claude 조회는 기본 꺼짐
+  await expect(page.getByRole("switch", { name: "Claude 사용량 조회" })).not.toBeChecked();
+
   await page.getByRole("link", { name: "사무실" }).click();
   await expect(page.locator("canvas")).toBeVisible();
 });

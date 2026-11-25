@@ -19,6 +19,7 @@ def settings(tmp_path: Path) -> Settings:
         claude_home=claude_home,
         claude_bin="definitely-not-claude",
         auth_enabled=False,
+        usage_poll_s=0,
     )
 
 

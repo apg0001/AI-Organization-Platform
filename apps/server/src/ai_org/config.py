@@ -35,6 +35,8 @@ class Settings:
     # 동시에 실행하는 Claude Code 프로세스 수(라즈베리 파이 기준 보수적).
     # 로그인 보호(기본 켬). off면 루프백·Host·Origin 검사만으로 보호한다.
     auth_enabled: bool = field(default_factory=lambda: os.environ.get("AI_ORG_AUTH", "on").lower() != "off")
+    # 사용량 자동 조회 주기(초). 0이면 끔(테스트).
+    usage_poll_s: float = field(default_factory=lambda: float(os.environ.get("AI_ORG_USAGE_POLL", "60")))
     max_concurrent_runs: int = field(default_factory=lambda: int(os.environ.get("AI_ORG_MAX_RUNS", "2")))
     max_turns: int | None = field(default_factory=lambda: int(os.environ.get("AI_ORG_MAX_TURNS", "30")))
     approval_timeout_s: float = field(
