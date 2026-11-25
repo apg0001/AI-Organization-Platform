@@ -30,7 +30,15 @@ from ai_org.schemas import ApprovalOut, TaskOut
 from ai_org.security import _host_name
 from ai_org.services import attachments as att
 from ai_org.services.commands import REGISTRY, CommandContext, CommandError, execute
-from ai_org.services.runs import RouteError, RunManager, message_json, resolve_routes, validate_context
+from ai_org.services.runs import (
+    QUEUE_WAITING,
+    RouteError,
+    RunManager,
+    message_json,
+    resolve_routes,
+    route_json,
+    validate_context,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
 
@@ -222,29 +230,45 @@ async def send_message(conv_id: str, body: MessageIn, db: DB, request: Request) 
         validate_context(db, conv, conv.context or [])
     except RouteError as exc:
         raise HTTPException(422, str(exc)) from exc
-    busy = {r.agent_id for r in runs.runs.values() if r.conversation_id == conv.id}
-    if any(route.agent.id in busy for route in routes):
-        raise HTTPException(
-            409, "이 대화에서 해당 에이전트가 아직 응답 중입니다. 중지하거나 끝날 때까지 기다리세요."
-        )
-    user = ChatMessage(
-        conversation_id=conv.id,
-        role="user",
-        content=body.content,
-        data={
-            "mentions": [r.agent.id for r in routes] if (body.mention_agent_ids or body.mention_all) else [],
-            "mention_all": body.mention_all,
-            "attachments": [_attachment_json(a) for a in files],
-        },
-    )
+    # 응답 중인 에이전트에게 보낸 몫은 거절하지 않고 대기열에 넣는다. 그 실행이 끝나면 이어서 전달된다(#45).
+    busy = runs.busy_agents(conv.id)
+    now_routes = [r for r in routes if r.agent.id not in busy]
+    later_routes = [r for r in routes if r.agent.id in busy]
+    data: dict[str, Any] = {
+        "mentions": [r.agent.id for r in routes] if (body.mention_agent_ids or body.mention_all) else [],
+        "mention_all": body.mention_all,
+        "attachments": [_attachment_json(a) for a in files],
+    }
+    if later_routes:
+        data["queued"] = [route_json(r) for r in later_routes]
+        data["queue_state"] = QUEUE_WAITING
+    user = ChatMessage(conversation_id=conv.id, role="user", content=body.content, data=data)
     db.add(user)
     if conv.title == "새 대화":
         conv.title = " ".join(body.content.split())[:60]
     conv.updated_at = datetime.now(UTC)
     db.commit()
     runs.bus.publish("message.created", conversation_id=conv.id, message=message_json(user))
-    replies = [runs.launch(db, conv, route, body.content, files) for route in routes]
-    return {"user_message": message_json(user), "assistant_message_ids": [m.id for m in replies]}
+    replies = [runs.launch(db, conv, route, body.content, files) for route in now_routes]
+    return {
+        "user_message": message_json(user),
+        "assistant_message_ids": [m.id for m in replies],
+        "queued_agent_ids": [r.agent.id for r in later_routes],
+    }
+
+
+@router.post("/conversations/{conv_id}/messages/{message_id}/cancel-queued")
+async def cancel_queued(conv_id: str, message_id: str, db: DB, request: Request) -> dict[str, Any]:
+    """아직 전달되지 않은 대기 메시지를 취소한다."""
+    conv = _get_conv(db, conv_id)
+    msg = db.get(ChatMessage, message_id)
+    if msg is None or msg.conversation_id != conv.id or msg.role != "user":
+        raise not_found("message")
+    if (msg.data or {}).get("queue_state") != QUEUE_WAITING:
+        raise HTTPException(409, "이미 전달되었거나 대기 중이 아닌 메시지입니다.")
+    runs_of(request).cancel_queued({conv.id}, "사용자가 취소했습니다.", message_id=msg.id)
+    db.refresh(msg)
+    return message_json(msg)
 
 
 @router.post("/conversations/{conv_id}/messages/{message_id}/regenerate", status_code=202)

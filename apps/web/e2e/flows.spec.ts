@@ -121,8 +121,14 @@ test("커맨드 센터: 스트리밍 응답·명령·멘션 자동완성·승인
   await input.press("Enter");
   const banner = page.getByRole("alert").filter({ hasText: "실행 승인을 요청합니다" });
   await expect(banner).toBeVisible();
+  // 응답 중(승인 대기)에도 보낼 수 있다. 대기열에 들어갔다가 지금 응답이 끝나면 이어서 전달된다(#45).
+  await input.fill("대기열 확인 메시지");
+  await input.press("Enter");
+  await expect(page.getByRole("status").filter({ hasText: "지금 응답이 끝나면 이어서 전달합니다" })).toBeVisible();
   await banner.getByRole("button", { name: "허용" }).click();
   await expect(page.getByText("파일 쓰기가 승인되었습니다.")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "지금 응답이 끝나면 이어서 전달합니다" })).toHaveCount(0);
+  await expect(page.getByText("가짜 런타임 응답입니다:").last()).toContainText("대기열 확인 메시지");
 
   await input.fill("[위임:QA 엔지니어] 점검해 줘");
   await input.press("Enter");
