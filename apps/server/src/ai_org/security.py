@@ -13,6 +13,8 @@
 
 from __future__ import annotations
 
+import hmac
+
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -80,12 +82,21 @@ class AuthMiddleware(BaseHTTPMiddleware):
     WebSocket은 엔드포인트(api/chat.py live)에서 같은 방식으로 검사한다.
     """
 
-    def __init__(self, app: ASGIApp, enabled: bool) -> None:
+    def __init__(self, app: ASGIApp, enabled: bool, desktop_token: str = "") -> None:
         super().__init__(app)
         self.enabled = enabled
+        self.desktop_token = desktop_token
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         path = request.url.path
+        if path.startswith("/api/v1/desktop/"):
+            # 데스크톱 앱 전용: 로그인 쿠키가 아니라 앱이 띄울 때 넘긴 토큰(Bearer)으로만 연다.
+            if not self.desktop_token:
+                return JSONResponse({"detail": "Not Found"}, status_code=404)
+            given = request.headers.get("authorization", "")
+            if not hmac.compare_digest(given.encode(), f"Bearer {self.desktop_token}".encode()):
+                return JSONResponse({"detail": "데스크톱 토큰이 필요합니다."}, status_code=401)
+            return await call_next(request)
         if self.enabled and path.startswith("/api") and path not in AUTH_EXEMPT:
             from ai_org.services import auth
 

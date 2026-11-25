@@ -3,8 +3,17 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+
+def _default_web_dist() -> Path | None:
+    """웹 빌드 폴더. 지정하면 백엔드가 화면까지 제공한다(단일 프로세스). 데스크톱 번들은 자동."""
+    if value := os.environ.get("AI_ORG_WEB_DIST"):
+        return Path(value).expanduser()
+    bundle = getattr(sys, "_MEIPASS", None)  # PyInstaller 번들 안
+    return Path(bundle) / "web" if bundle else None
 
 
 def _default_home() -> Path:
@@ -37,6 +46,9 @@ class Settings:
     auth_enabled: bool = field(default_factory=lambda: os.environ.get("AI_ORG_AUTH", "on").lower() != "off")
     # 사용량 자동 조회 주기(초). 0이면 끔(테스트).
     usage_poll_s: float = field(default_factory=lambda: float(os.environ.get("AI_ORG_USAGE_POLL", "60")))
+    # 데스크톱 앱이 백엔드를 띄울 때 넘기는 임의 토큰. /api/v1/desktop/* 는 이 토큰으로만 열린다.
+    desktop_token: str = field(default_factory=lambda: os.environ.get("AI_ORG_DESKTOP_TOKEN", ""))
+    web_dist: Path | None = field(default_factory=_default_web_dist)
     max_concurrent_runs: int = field(default_factory=lambda: int(os.environ.get("AI_ORG_MAX_RUNS", "2")))
     max_turns: int | None = field(default_factory=lambda: int(os.environ.get("AI_ORG_MAX_TURNS", "30")))
     approval_timeout_s: float = field(

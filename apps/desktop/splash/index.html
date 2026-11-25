@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>AI Organization</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: #0e1015;
+        color: #e6e8ee;
+        font-family: -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
+      }
+      main {
+        height: 100%;
+        display: grid;
+        place-content: center;
+        gap: 12px;
+        text-align: center;
+      }
+      p {
+        margin: 0;
+        color: #a0a6b6;
+        font-size: 14px;
+      }
+      #error {
+        color: #f47272;
+        max-width: 480px;
+      }
+      .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #97a6ff;
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.35;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .dot {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 style="margin: 0; font-size: 20px">AI Organization</h1>
+      <p><span class="dot"></span> 로컬 서버를 시작하는 중입니다…</p>
+      <p id="error" hidden></p>
+    </main>
+  </body>
+</html>

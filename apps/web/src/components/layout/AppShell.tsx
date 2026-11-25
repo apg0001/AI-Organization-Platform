@@ -1,5 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  Bell,
+  BellOff,
   Blocks,
   Building2,
   Check,
@@ -19,12 +21,20 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import { toast } from "sonner";
 
 import { Dialog, Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/overlay";
 import { AccountDialog } from "@/features/auth/AccountDialog";
 import { useAuth } from "@/features/auth/AuthGate";
 import { markVisited, setGuideHidden } from "@/features/guide/guide";
 import { api } from "@/lib/api";
+import {
+  disableBrowserNotifications,
+  enableBrowserNotifications,
+  isDesktopShell,
+  notificationsSupported,
+  useBrowserNotifications,
+} from "@/lib/notify";
 import { THEMES, type ThemeChoice, setTheme, useTheme } from "@/lib/theme";
 import { useLiveConnected } from "@/lib/live";
 import { UsageMeter } from "@/features/usage/UsagePage";
@@ -190,6 +200,7 @@ function PreferencesMenu() {
           </MenuItem>
         ))}
         <MenuSeparator />
+        <NotificationItem />
         <MenuItem
           onSelect={() => {
             setGuideHidden(false);
@@ -200,6 +211,29 @@ function PreferencesMenu() {
         </MenuItem>
       </MenuContent>
     </Menu>
+  );
+}
+
+/** 브라우저 알림 켜기·끄기. 데스크톱 앱 창에서는 앱이 알림을 보내므로 안내만 한다. */
+function NotificationItem() {
+  const on = useBrowserNotifications();
+  if (isDesktopShell()) return <MenuLabel>알림: 데스크톱 앱이 보냅니다</MenuLabel>;
+  if (!notificationsSupported()) return <MenuLabel>이 브라우저는 알림을 지원하지 않습니다</MenuLabel>;
+  return (
+    <MenuItem
+      onSelect={() => {
+        if (on) {
+          disableBrowserNotifications();
+          return;
+        }
+        void enableBrowserNotifications().then((p) => {
+          if (p === "granted") toast.success("브라우저 알림을 켰습니다. 이 탭이 안 보일 때 승인 요청·작업 완료·사용량 경고를 알립니다.");
+          else toast.error("알림 권한이 거부되어 있습니다. 브라우저 사이트 설정에서 허용해 주세요.");
+        });
+      }}
+    >
+      {on ? <BellOff /> : <Bell />} {on ? "브라우저 알림 끄기" : "브라우저 알림 켜기"}
+    </MenuItem>
   );
 }
 
