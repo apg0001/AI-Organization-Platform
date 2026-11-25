@@ -1,0 +1,328 @@
+/*
+ * AI Organization 디자인 시스템 — 토큰의 단일 출처. 값의 근거와 사용 규칙은 docs/DESIGN_SYSTEM.md.
+ * 컴포넌트는 이 토큰(Tailwind 유틸리티로 노출)만 쓰고 임의 색상 값을 쓰지 않는다.
+ */
+@import "tailwindcss";
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+
+@font-face {
+  font-family: "Galmuri11";
+  src: url("/fonts/galmuri/Galmuri11.woff2") format("woff2");
+  font-display: swap;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* 바탕: 밤의 사무실. 중성 검정이 아니라 아주 약한 청색을 띤 차콜. */
+  --bg: #0e1015;
+  --surface-1: #14171e; /* 사이드바·패널 */
+  --surface-2: #1a1e27; /* 입력·팝오버·떠 있는 면 */
+  --surface-3: #222734; /* 선택·hover 행 */
+  --border: #262b37;
+  --border-strong: #353b4a;
+  --text: #e6e8ee;
+  --text-muted: #a0a6b6;
+  --text-faint: #7d8496; /* 4.5:1 이상(bg, surface-1). 장식·보조 정보에만 */
+
+  /* 주 색(행동): 청색-인디고 */
+  --primary: #4c63e8; /* 채운 버튼 배경 — 흰 글자 4.9:1 */
+  --primary-hover: #5a70f0;
+  --primary-text: #97a6ff; /* 어두운 면 위 링크·강조 글자 */
+  --primary-soft: rgb(76 99 232 / 0.16);
+
+  /* 의미 색 */
+  --success: #45c486;
+  --warning: #f0b44c; /* '당신을 기다림' — 승인 대기. 사무실의 '!' 표식과 같은 색 */
+  --danger: #f47272;
+  --danger-solid: #c93c3c;
+
+  /* 에이전트 상태(아이콘·글자와 함께만 쓴다) */
+  --status-idle: #959cae;
+  --status-thinking: #b39dfb;
+  --status-working: #97a6ff;
+  --status-waiting: #f0b44c;
+  --status-reviewing: #55c8dc;
+  --status-completed: #45c486;
+  --status-failed: #f47272;
+  --status-offline: #5c6273;
+
+  /* 부서 색(조직도 칩). 낮은 채도, 바탕 위 대비 4.5:1 이상 */
+  --dept-1: #8fb1ff;
+  --dept-2: #7fd4b0;
+  --dept-3: #e7b77a;
+  --dept-4: #d39bf0;
+  --dept-5: #f09aa8;
+  --dept-6: #8ed3e8;
+  --dept-7: #c9cf7d;
+  --dept-8: #b8b0ff;
+
+  --ring: #97a6ff;
+  --shadow-overlay: 0 12px 32px -8px rgb(0 0 0 / 0.55), 0 2px 8px -2px rgb(0 0 0 / 0.4);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", monospace;
+  --font-pixel: "Galmuri11", ui-monospace, monospace;
+
+  --color-bg: var(--bg);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--text);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-text: var(--primary-text);
+  --color-primary-soft: var(--primary-soft);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-danger-solid: var(--danger-solid);
+  --color-ring: var(--ring);
+
+  /* 타입 스케일(정보 밀도가 높은 도구 UI). px 기준: 11/12/13/14/16/20/24 */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.375rem;
+  --text-md: 1rem;
+  --text-md--line-height: 1.5rem;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.5rem;
+  --text-xl--line-height: 2rem;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --shadow-overlay: var(--shadow-overlay);
+  --ease-out: var(--ease-out);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss06", "tnum" 0;
+    text-rendering: optimizeLegibility;
+  }
+  @media (pointer: fine) {
+    html {
+      overscroll-behavior: none;
+    }
+  }
+  /* 브라우저 표면도 디자인의 일부: 선택·캐럿·스크롤바·포커스. */
+  ::selection {
+    background: rgb(151 166 255 / 0.32);
+    color: var(--text);
+  }
+  input,
+  textarea {
+    caret-color: var(--primary-text);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+    border-color: var(--border);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  a {
+    text-underline-offset: 3px;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* 상태 펄스: '작업 중' 점에만. 줄인 모션 환경에서는 멈춘다. */
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.status-pulse {
+  animation: status-pulse 1.6s ease-in-out infinite;
+}
+
+/* 오버레이 등장: 트리거 쪽에서 살짝 커지며 나타난다(scale 0에서 시작하지 않는다). */
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(2px);
+  }
+}
+.overlay-in {
+  animation: overlay-in 160ms var(--ease-out);
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin, var(--radix-popover-content-transform-origin, center));
+}
+
+/* 마크다운 본문(채팅 응답) */
+.prose-chat {
+  font-size: var(--text-base);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.prose-chat > * + * {
+  margin-top: 0.65em;
+}
+.prose-chat h1,
+.prose-chat h2,
+.prose-chat h3 {
+  font-weight: 600;
+  margin-top: 1.1em;
+}
+.prose-chat h1 {
+  font-size: var(--text-md);
+}
+.prose-chat h2,
+.prose-chat h3 {
+  font-size: var(--text-base);
+}
+.prose-chat ul {
+  list-style: disc;
+  padding-left: 1.25em;
+}
+.prose-chat ol {
+  list-style: decimal;
+  padding-left: 1.25em;
+}
+.prose-chat li + li {
+  margin-top: 0.25em;
+}
+.prose-chat a {
+  color: var(--primary-text);
+  text-decoration: underline;
+}
+.prose-chat strong {
+  font-weight: 600;
+}
+.prose-chat :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--surface-3);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+.prose-chat table {
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  display: block;
+  overflow-x: auto;
+}
+.prose-chat th,
+.prose-chat td {
+  border: 1px solid var(--border);
+  padding: 0.3em 0.6em;
+  text-align: left;
+}
+.prose-chat blockquote {
+  border-left: 2px solid var(--border-strong);
+  padding-left: 0.8em;
+  color: var(--text-muted);
+}
+
+/* 코드 하이라이트(highlight.js 클래스) — 팔레트에서 파생 */
+.hljs {
+  color: #d5d9e3;
+}
+.hljs-comment,
+.hljs-quote {
+  color: #7d8496;
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-type {
+  color: #b39dfb;
+}
+.hljs-string,
+.hljs-attr,
+.hljs-template-tag {
+  color: #8fd6a8;
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol {
+  color: #f0b44c;
+}
+.hljs-title,
+.hljs-function .hljs-title,
+.hljs-title.function_ {
+  color: #97a6ff;
+}
+.hljs-variable,
+.hljs-params,
+.hljs-property {
+  color: #e6e8ee;
+}
+.hljs-meta,
+.hljs-section {
+  color: #55c8dc;
+}
+.hljs-deletion {
+  color: #f47272;
+}
+.hljs-addition {
+  color: #45c486;
+}
+
+/* React Flow를 토큰에 맞춘다 */
+.react-flow {
+  --xy-background-color: var(--bg);
+  --xy-edge-stroke: var(--border-strong);
+  --xy-edge-stroke-selected: var(--primary-text);
+  --xy-connectionline-stroke: var(--primary-text);
+  --xy-controls-button-background-color: var(--surface-2);
+  --xy-controls-button-background-color-hover: var(--surface-3);
+  --xy-controls-button-color: var(--text-muted);
+  --xy-controls-button-border-color: var(--border);
+  --xy-minimap-background-color: var(--surface-1);
+  --xy-handle-background-color: var(--surface-3);
+  --xy-handle-border-color: var(--border-strong);
+  --xy-attribution-background-color: transparent;
+}
