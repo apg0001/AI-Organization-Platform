@@ -44,6 +44,17 @@
 | GET | `/capabilities` | 탐색한 Skills·MCP·Plugins(비밀 값 제외) |
 | GET | `/capabilities/mcp/health` | `claude mcp list` 연결 점검 → `[{name, state, message}]`(state: connected·needs_auth·failed·pending_approval·disabled·unknown·error) |
 
+## 사용량
+
+[USAGE.md](USAGE.md) 참고. 응답에 토큰은 들어가지 않는다.
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| GET | `/usage` | `{settings, providers:[{id, name, state, plan, observed_at, message, windows:[{id, label, percent, resets_at, window_minutes, elapsed_percent, burn_rate_per_hour, projected_at_reset, exhaust_at, confidence, samples}]}]}`. state: ok·disabled·pending·not_logged_in·token_expired·rate_limited·error·no_data |
+| POST | `/usage/refresh` | 즉시 다시 조회(Claude는 최소 60초 간격 유지) |
+| PUT | `/usage/settings` | `{claude_enabled?, codex_enabled?, thresholds?(1~100, 최대 5개)}` |
+| GET | `/usage/history?provider=&window=&hours=` | `[{at, percent}]` |
+
 ## 조직
 
 | 메서드 | 경로 | 설명 |
@@ -120,3 +131,5 @@
 | `task.delegated` | organization_id, conversation_id, from_agent_id, to_agent_id, task_id, kind(delegated·review) | 에이전트 간 위임·검토 요청 |
 | `design.updated` | design_id, status, busy | 설계 초안 변경 |
 | `organization.updated` | organization_id | 설계 적용 |
+| `usage.updated` | — | 사용량 다시 조회됨 |
+| `usage.threshold` | provider, window, threshold, percent, summary | 사용량 임계치를 처음 넘음 |

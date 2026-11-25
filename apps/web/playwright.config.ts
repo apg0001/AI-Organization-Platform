@@ -6,7 +6,7 @@ import { defineConfig } from "@playwright/test";
 
 /**
  * 브라우저 E2E. 임시 데이터 폴더 + 테스트용 가짜 런타임(AI_ORG_RUNTIME=fake)으로 백엔드(8100)와 웹(3100)을 띄운다.
- * Claude 사용량을 쓰지 않는다. 브라우저는 시스템 Chrome(channel: chrome)을 쓴다.
+ * Claude 사용량을 쓰지 않는다(사용량 조회도 기본 꺼짐, Codex 폴더는 빈 임시 폴더). 브라우저는 시스템 Chrome(channel: chrome)을 쓴다.
  */
 const home = process.env.AI_ORG_E2E_HOME ?? mkdtempSync(join(tmpdir(), "ai-org-e2e-"));
 const python = process.env.AI_ORG_E2E_PYTHON ?? "../server/.venv/bin/python";
@@ -34,7 +34,7 @@ export default defineConfig({
       command: `${python} -m uvicorn ai_org.main:app --host 127.0.0.1 --port 8100`,
       cwd: "../server",
       url: "http://127.0.0.1:8100/api/v1/system/health",
-      env: { AI_ORG_HOME: home, AI_ORG_RUNTIME: "fake", AI_ORG_PORT: "8100", AI_ORG_WEB_PORT: "3100" },
+      env: { AI_ORG_HOME: home, CODEX_HOME: join(home, "codex"), AI_ORG_RUNTIME: "fake", AI_ORG_PORT: "8100", AI_ORG_WEB_PORT: "3100" },
       reuseExistingServer: false,
       timeout: 60_000,
     },

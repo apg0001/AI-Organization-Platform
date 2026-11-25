@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -11,7 +12,7 @@ from sqlalchemy import select
 
 from ai_org import __version__
 from ai_org.api import auth as auth_api
-from ai_org.api import chat, designs, organizations, projects, system
+from ai_org.api import chat, designs, organizations, projects, system, usage
 from ai_org.config import Settings
 from ai_org.db import init_db, make_engine, session_factory
 from ai_org.models import Attachment
@@ -22,6 +23,7 @@ from ai_org.services import attachments as att
 from ai_org.services.auth import LoginThrottle
 from ai_org.services.bus import EventBus
 from ai_org.services.runs import RunManager
+from ai_org.services.usage import UsageMonitor
 
 DRAFT_ATTACHMENT_TTL = timedelta(hours=24)
 
@@ -54,7 +56,13 @@ def create_app(
         _purge_draft_attachments(factory, settings)
         app.state.runs = runs
         app.state.design_tasks = set()
+        app.state.usage = UsageMonitor()
+        poller = (
+            asyncio.create_task(usage.poll(app, settings.usage_poll_s)) if settings.usage_poll_s > 0 else None
+        )
         yield
+        if poller is not None:
+            poller.cancel()
         for task in list(app.state.design_tasks):
             task.cancel()
         await runs.shutdown()
@@ -84,6 +92,7 @@ def create_app(
     app.include_router(projects.router)
     app.include_router(chat.router)
     app.include_router(designs.router)
+    app.include_router(usage.router)
     return app
 
 

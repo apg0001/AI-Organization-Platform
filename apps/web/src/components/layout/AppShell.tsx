@@ -3,6 +3,7 @@ import {
   Building2,
   ChevronsUpDown,
   FolderGit2,
+  Gauge,
   LayoutDashboard,
   LogOut,
   MessagesSquare,
@@ -19,7 +20,8 @@ import { Dialog, Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrig
 import { AccountDialog } from "@/features/auth/AccountDialog";
 import { useAuth } from "@/features/auth/AuthGate";
 import { useLiveConnected } from "@/lib/live";
-import { useApprovals, useCurrentOrg, useOrganizations, useSystemInfo } from "@/lib/queries";
+import { UsageMeter } from "@/features/usage/UsagePage";
+import { useApprovals, useCurrentOrg, useOrganizations, useSystemInfo, useUsage } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -29,6 +31,7 @@ const NAV = [
   { to: "/office", label: "사무실", icon: Building2 },
   { to: "/projects", label: "프로젝트", icon: FolderGit2 },
   { to: "/capabilities", label: "기능 관리", icon: Blocks },
+  { to: "/usage", label: "사용량", icon: Gauge },
 ];
 
 export function AppShell() {
@@ -176,12 +179,30 @@ function UserMenu() {
   );
 }
 
+/** 사이드바 아래 Claude 사용률(켜져 있고 값이 있을 때만). */
+function UsageMini() {
+  const usage = useUsage();
+  const claude = usage.data?.providers.find((p) => p.id === "claude" && p.state === "ok");
+  const w = claude?.windows[0];
+  if (!w) return null;
+  return (
+    <NavLink to="/usage" className="flex flex-col gap-1 rounded-md px-1 py-1 hover:bg-surface-2" title={`Claude ${w.label} ${w.percent.toFixed(0)}%`}>
+      <span className="flex justify-between">
+        <span>Claude {w.label}</span>
+        <span className="tabular">{w.percent.toFixed(0)}%</span>
+      </span>
+      <UsageMeter window={w} compact />
+    </NavLink>
+  );
+}
+
 function SystemStatus() {
   const info = useSystemInfo();
   const live = useLiveConnected();
   const claude = info.data?.runtimes.find((r) => r.id === "claude-code");
   return (
     <div className="flex flex-col gap-1.5 border-t border-border px-3 py-3 text-2xs text-faint max-md:hidden">
+      <UsageMini />
       <span className="flex items-center gap-1.5" title={claude?.detail ?? claude?.path ?? undefined}>
         <span
           className="size-1.5 rounded-full"

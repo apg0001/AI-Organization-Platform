@@ -58,6 +58,7 @@
   --dept-7: #c9cf7d;
   --dept-8: #b8b0ff;
 
+  --chart-1: #97a6ff; /* 단일 계열 차트 선(정체성). 상태색과 겹치지 않는다 */
   --ring: #97a6ff;
   --shadow-overlay: 0 12px 32px -8px rgb(0 0 0 / 0.55), 0 2px 8px -2px rgb(0 0 0 / 0.4);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);

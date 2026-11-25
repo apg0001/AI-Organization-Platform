@@ -42,7 +42,9 @@
 
 ## 5. 민감 정보
 
-- 이 앱은 Claude 자격증명·API 키를 읽거나 저장하지 않는다.
+- 이 앱은 Claude 자격증명·API 키를 저장하지 않는다. 예외로 **사용자가 사용량 화면에서 'Claude 사용량 조회'를 켠 경우에만**
+  Claude Code CLI 로그인 토큰을 읽어 Anthropic 사용량 API(`api.anthropic.com`) 요청 헤더에 쓴다. 토큰은 메모리에서만 쓰고
+  DB·로그·응답에 남기지 않으며 갱신하지 않는다([USAGE.md](USAGE.md)). 이 기능 말고는 앱이 외부로 요청을 보내지 않는다.
 - MCP 설정의 env·헤더·인자·URL 쿼리 값은 응답에 넣지 않는다. 허용된 서버의 원본 설정(비밀 포함)은 실행 옵션으로만 Claude Code에
   전달하고 DB·로그·화면에 남기지 않는다(테스트 `test_run_request_carries_allowed_mcp_and_plugins`). Git 원격 URL의 자격증명은 지운다.
 - 실행 기록에는 도구 이름과 짧은 대상만 저장한다(도구 출력 원문 저장 안 함). 대화 본문과 응답은 로컬 DB에 저장된다.

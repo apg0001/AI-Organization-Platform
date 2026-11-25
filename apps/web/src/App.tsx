@@ -13,6 +13,7 @@ import { CURRENT_ORG_KEY, CurrentOrgContext, useOrganizations } from "@/lib/quer
 
 // Phaser(약 1.2MB)는 사무실 화면에 들어갈 때만 받는다.
 const OfficePage = lazy(() => import("@/features/office/OfficePage"));
+const UsagePage = lazy(() => import("@/features/usage/UsagePage").then((m) => ({ default: m.UsagePage })));
 const ProjectsPage = lazy(() => import("@/features/projects/ProjectsPage").then((m) => ({ default: m.ProjectsPage })));
 const OrganizationPage = lazy(() => import("@/features/organization/OrganizationPage").then((m) => ({ default: m.OrganizationPage })));
 const CommandCenter = lazy(() => import("@/features/command/CommandCenter").then((m) => ({ default: m.CommandCenter })));
@@ -43,6 +44,7 @@ const router = createBrowserRouter([
           { path: "agents/:agentId", element: page(<AgentDetailPage />) },
           { path: "office", element: page(<OfficePage />, "사무실을 불러오는 중…") },
           { path: "projects", element: page(<ProjectsPage />) },
+          { path: "usage", element: page(<UsagePage />) },
           { path: "capabilities", element: page(<CapabilitiesPage />) },
           { path: "builder", element: page(<BuilderHome />) },
           { path: "builder/:designId", element: page(<BuilderWorkspace />) },

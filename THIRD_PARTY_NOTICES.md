@@ -34,6 +34,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## GigaCharge (MIT)
+
+`apps/server/src/ai_org/services/usage.py`의 Claude·Codex 사용량 수집 방식, 소진 예측(최소제곱 회귀·신뢰도 기준),
+임계치 판정은 GigaCharge(https://github.com/apg0001/AI_Agent_Usage_Widget_for_MAC, `src/main/usageProviders.ts`,
+`usageInsights.ts`, `usageNotifications.ts`)를 Python으로 옮긴 것이다. 라이선스 전문은 위 Agent Office 항목과 같은 MIT 문구이며
+저작권 표기는 `Copyright (c) 2026 apg0001`이다.
+
 ## Kenney Furniture Kit 2.0 (CC0)
 
 `apps/web/public/office/kenney/*.png` — Kenney(www.kenney.nl), CC0 1.0. 원문: `apps/web/public/office/kenney/License.txt`.

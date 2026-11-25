@@ -18,6 +18,7 @@ import {
   type SystemInfo,
   type Task,
   type Template,
+  type UsagePayload,
   type Workspace,
   api,
 } from "./api";
@@ -66,6 +67,8 @@ export const useConversation = (id: string | null) =>
     queryFn: () => api<ConversationDetail>(`/conversations/${id}`),
     enabled: Boolean(id),
   });
+export const useUsage = () =>
+  useQuery({ queryKey: ["usage"], queryFn: () => api<UsagePayload>("/usage"), refetchInterval: 60_000 });
 export const useDesign = (id: string | undefined) =>
   useQuery({ queryKey: ["design", id], queryFn: () => api<Design>(`/designs/${id}`), enabled: Boolean(id) });
 export const useRevisions = (orgId: string | null) =>
