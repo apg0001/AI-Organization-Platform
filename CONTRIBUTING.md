@@ -34,6 +34,11 @@
 기능·API·DB·아키텍처·보안 정책·설치 방법·환경 변수가 바뀌면 같은 PR에서 관련 문서(README, docs/*, CHANGELOG)를 갱신한다.
 기술 선택을 바꿀 때는 기존 ADR을 고치지 않고 새 ADR을 추가한다(`docs/decisions/`).
 
+## 플랫폼으로 개발하기
+
+이 저장소의 이슈는 플랫폼의 에이전트 조직에게 맡길 수 있다. 실행용 체크아웃과 개발용 worktree를 분리하고, 결과는 사람이 검토해 PR로 올린다.
+커밋 본문에 에이전트가 구현했음을 적는다. 방법: [docs/SELF_DEVELOPMENT.md](docs/SELF_DEVELOPMENT.md).
+
 ## 화면 검증(Chrome DevTools MCP)
 
 저장소의 `.mcp.json`에 `chrome-devtools`(chrome-devtools-mcp, 헤드리스·임시 프로필·사용 통계와 CrUX 전송 끔)가 있다.

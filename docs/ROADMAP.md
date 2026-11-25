@@ -24,6 +24,10 @@
   (처음 구현은 구조화 출력의 내부 도구 `StructuredOutput`까지 막아 실패했다 → 그 도구만 허용.)
 - 프로젝트를 연결한 대화에서 에이전트가 저장소 파일을 읽고 답함.
 
+## 자기 개발(dogfooding)
+
+이 저장소는 플랫폼 자신으로도 개발한다. 첫 실측: 이슈 #23을 에이전트 조직이 구현 → PR #25 병합(2026-11-25). 방법·결과: [SELF_DEVELOPMENT.md](SELF_DEVELOPMENT.md).
+
 ## 다음 작업(우선순위)
 
 1. Phase 5 다음: 선행 작업 스케줄링, 비동기 위임, 검토 거절 시 재작업 — [AGENT_ORCHESTRATION.md](AGENT_ORCHESTRATION.md).

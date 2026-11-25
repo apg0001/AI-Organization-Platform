@@ -109,7 +109,8 @@ cd apps/server && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]' && 
 2. **프로젝트 등록**(선택) — `프로젝트` → 탐색 경로 추가 → 찾은 프로젝트 등록. 대화에 연결하면 에이전트가 그 폴더에서 일한다.
 3. **일 맡기기** — `커맨드 센터`에서 CEO에게 말하거나, `@이름`으로 특정 에이전트에게, `/delegate @이름 업무`로 작업을 위임한다.
 4. **승인** — 셸 명령·파일 수정 등 승인이 필요한 도구는 채팅 위와 실행 패널에 승인 요청이 뜬다.
-5. **지켜보기** — `사무실`에서 캐릭터가 활동에 따라 서재·회의실·테스트 구역으로 이동한다.
+5. **이 저장소 자체도 이렇게 개발할 수 있다** — 실행용과 개발용(worktree)을 나누어 에이전트 조직에게 이슈를 맡긴다([docs/SELF_DEVELOPMENT.md](docs/SELF_DEVELOPMENT.md)).
+6. **지켜보기** — `사무실`에서 캐릭터가 활동에 따라 서재·회의실·테스트 구역으로 이동한다.
 
 ## 테스트
 
@@ -134,7 +135,7 @@ npm run e2e        # 브라우저 E2E(Playwright, 시스템 Chrome, 테스트용
 채팅 [CHAT_SYSTEM](docs/CHAT_SYSTEM.md) · 기능 관리 [CAPABILITY_MANAGER](docs/CAPABILITY_MANAGER.md) ·
 프로젝트 [PROJECT_MANAGER](docs/PROJECT_MANAGER.md) · 보안 [SECURITY](docs/SECURITY.md) ·
 디자인 [DESIGN_SYSTEM](docs/DESIGN_SYSTEM.md) · [UI_UX_GUIDELINES](docs/UI_UX_GUIDELINES.md) · [COMPONENT_GUIDELINES](docs/COMPONENT_GUIDELINES.md) ·
-재사용 분석 [REUSE_ANALYSIS](docs/REUSE_ANALYSIS.md) · 배포 [DEPLOYMENT](docs/DEPLOYMENT.md) · Git [GIT_CONVENTION](docs/GIT_CONVENTION.md) · 기여 [CONTRIBUTING](CONTRIBUTING.md)
+재사용 분석 [REUSE_ANALYSIS](docs/REUSE_ANALYSIS.md) · 자기 개발 [SELF_DEVELOPMENT](docs/SELF_DEVELOPMENT.md) · 배포 [DEPLOYMENT](docs/DEPLOYMENT.md) · Git [GIT_CONVENTION](docs/GIT_CONVENTION.md) · 기여 [CONTRIBUTING](CONTRIBUTING.md)
 
 ## 라이선스
 
