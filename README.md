@@ -32,6 +32,7 @@ CEO에게 일을 맡기면 **실제 Claude Code 에이전트**가 이 컴퓨터�
 | 사무실 | Agent Office 아이소메트릭 렌더러, 에이전트 상태·활동에 따라 구역 이동 |
 | 사용량 | Claude·Codex 사용률, 초기화 남은 시간, 소진 예측, 이력 그래프, 임계치 알림 |
 | 화면 | 테마 4종(다크·라이트·고대비·시스템), 대시보드 시작 가이드 8단계 |
+| 데스크톱·알림 | 설치형 앱(내장 백엔드), 시스템 트레이(실행 중·승인 대기·사용량), 네이티브·브라우저 알림 |
 
 ## 아키텍처 개요
 
@@ -63,6 +64,12 @@ scripts/dev.sh          백엔드 + 웹 동시 실행
 .claude/skills/         디자인 작업용 Claude Code Skills
 .github/                PR·Issue 템플릿, CI
 ```
+
+## 설치 파일(데스크톱 앱)
+
+[Releases](https://github.com/apg0001/AI-Organization-Platform/releases)에서 OS에 맞는 파일을 받는다(Linux `.deb`·`.AppImage`,
+macOS `.dmg`, Windows `-setup.exe`). Claude Code CLI 설치·로그인이 먼저 필요하고, 서명하지 않은 빌드라 첫 실행 경고가 뜬다 —
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#데스크톱-앱). 아래는 소스에서 실행하는 방법이다.
 
 ## 사전 요구사항
 

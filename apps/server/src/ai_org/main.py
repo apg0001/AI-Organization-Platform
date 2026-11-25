@@ -159,7 +159,11 @@ def _exit_when_parent_closes_stdin() -> None:
             fd = sys.stdin.fileno()
             while os.read(fd, 4096):
                 pass
-        os.kill(os.getpid(), signal.SIGTERM)
+        if sys.platform == "win32":
+            # Windows의 os.kill(SIGTERM)은 즉시 강제 종료다. SIGINT를 올려 uvicorn이 정상 종료하게 한다.
+            signal.raise_signal(signal.SIGINT)
+        else:
+            os.kill(os.getpid(), signal.SIGTERM)
 
     threading.Thread(target=watch, name="stdin-eof", daemon=True).start()
 

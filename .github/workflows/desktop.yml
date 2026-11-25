@@ -37,12 +37,14 @@ jobs:
             os: ubuntu-24.04-arm
             bundles: deb,appimage
           - name: macOS arm64
-            os: macos-14
+            os: macos-latest
             bundles: app,dmg
           - name: Windows x64
             os: windows-2022
             bundles: nsis
     runs-on: ${{ matrix.os }}
+    env:
+      PYTHONUTF8: "1" # Windows 콘솔(cp1252)에서도 한국어 출력
     permissions:
       contents: write # 태그 빌드에서 릴리스 파일 올리기
     defaults:
@@ -78,7 +80,7 @@ jobs:
           PYTHON=python scripts/build-sidecar.sh
           ls -la apps/desktop/src-tauri/binaries
       - name: 백엔드 스모크(웹 제공·요약 API·입력 종료 시 종료)
-        run: python scripts/smoke_sidecar.py apps/desktop/src-tauri/binaries
+        run: python -u scripts/smoke_sidecar.py apps/desktop/src-tauri/binaries
       - name: 앱 빌드
         working-directory: apps/desktop
         env:
@@ -86,7 +88,7 @@ jobs:
         run: npx --yes @tauri-apps/cli@2.12.6 build --bundles ${{ matrix.bundles }}
       - name: 앱 실행 스모크(가상 화면)
         if: runner.os == 'Linux'
-        run: python scripts/smoke_desktop.py "$PWD/apps/desktop/src-tauri/target/release/ai-org-desktop"
+        run: xvfb-run -a python -u scripts/smoke_desktop.py "$PWD/apps/desktop/src-tauri/target/release/ai-org-desktop"
       - name: 설치 파일 목록
         id: files
         run: |

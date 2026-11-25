@@ -55,6 +55,14 @@
 | PUT | `/usage/settings` | `{claude_enabled?, codex_enabled?, thresholds?(1~100, 최대 5개)}` |
 | GET | `/usage/history?provider=&window=&hours=` | `[{at, percent}]` |
 
+## 데스크톱
+
+`Authorization: Bearer <AI_ORG_DESKTOP_TOKEN>` 필요(데스크톱 앱이 백엔드를 띄울 때만 설정). 토큰이 설정되지 않았으면 404.
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| GET | `/desktop/summary?after=<id>` | `{version, running, approvals, usage:[{provider, label, percent}], notifications:[{id, at, kind, title, body, url}], latest_id}` — 알림은 `after`보다 큰 id만(최근 100개 보관). kind: approval·done·failed·usage |
+
 ## 조직
 
 | 메서드 | 경로 | 설명 |
@@ -133,3 +141,4 @@
 | `organization.updated` | organization_id | 설계 적용 |
 | `usage.updated` | — | 사용량 다시 조회됨 |
 | `usage.threshold` | provider, window, threshold, percent, summary | 사용량 임계치를 처음 넘음 |
+| `notify` | notification{id, at, kind, title, body, url} | 알림 센터가 고른 알림(승인 요청·작업 완료/실패·사용량 경고). 웹은 브라우저 알림으로 띄운다 |
