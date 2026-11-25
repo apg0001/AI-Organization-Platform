@@ -412,3 +412,20 @@ def test_context_validation(chat: TestClient, tmp_path: Path) -> None:
     tree = chat.get(f"/api/v1/projects/{project['id']}/tree").json()
     assert [e["name"] for e in tree["entries"]] == ["src", "package.json"]
     assert chat.get(f"/api/v1/projects/{project['id']}/tree", params={"path": "../.."}).status_code == 403
+
+
+def test_new_conversation_defaults_to_sole_linked_project(chat: TestClient, tmp_path: Path) -> None:
+    org = chat.post("/api/v1/organizations/from-template", json={"template_key": "software"}).json()
+    root = tmp_path / "code"
+    for name in ("one", "two"):
+        (root / name).mkdir(parents=True)
+        (root / name / "package.json").write_text("{}")
+    chat.post("/api/v1/project-roots", json={"path": str(root)})
+    one = chat.post("/api/v1/projects", json={"path": str(root / "one"), "organization_id": org["id"]}).json()
+    # 연결된 프로젝트가 하나면 새 대화가 그 프로젝트에서 시작한다.
+    conv = chat.post("/api/v1/conversations", json={"organization_id": org["id"]}).json()
+    assert conv["project_id"] == one["id"]
+    # 둘 이상이면 고르게 둔다.
+    chat.post("/api/v1/projects", json={"path": str(root / "two"), "organization_id": org["id"]})
+    conv = chat.post("/api/v1/conversations", json={"organization_id": org["id"]}).json()
+    assert conv["project_id"] is None
