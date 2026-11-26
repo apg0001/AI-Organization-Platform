@@ -180,6 +180,40 @@ test("커맨드 센터: 스트리밍 응답·명령·멘션 자동완성·승인
   const approvals = page.getByRole("alert").filter({ hasText: "실행 승인을 요청합니다" });
   for (let i = 0; i < 2; i += 1) await approvals.getByRole("button", { name: "허용" }).first().click();
   await expect(page.getByRole("region", { name: /응답 중/ })).toHaveCount(0);
+
+  // 대화 목록은 주 사이드바 안에 있고, 사이드바를 접으면 대화 위쪽 '대화' 메뉴로 바꾼다(#79).
+  const convList = page.getByRole("navigation", { name: "주 메뉴" }).getByRole("region", { name: "대화 목록" });
+  await expect(convList).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("sidebar-open.png") });
+  await page.getByRole("button", { name: "사이드바 접기" }).click();
+  await expect(convList).toBeHidden();
+  await expect(page.getByRole("button", { name: "대화 목록" })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("sidebar-rail.png") });
+  await page.keyboard.press("Control+b");
+  await expect(convList).toBeVisible();
+
+  // 왼쪽 위에서 조직을 바꾸면 열린 대화도 그 조직 것으로 바뀐다(#79).
+  const openUrl = page.url();
+  await page.evaluate(() =>
+    fetch("/api/v1/organizations/from-template", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ template_key: "personal", name: "E2E 두 번째 조직" }),
+    }),
+  );
+  await page.reload();
+  await page.getByRole("button", { name: "조직 선택" }).click();
+  await page.getByRole("menuitem", { name: /E2E 두 번째 조직/ }).click();
+  await expect(page.getByRole("button", { name: "CEO에게 업무 지시" })).toBeVisible();
+  expect(page.url()).not.toBe(openUrl);
+  await page.goto(openUrl); // 다른 조직 대화 링크를 열면 조직이 그 대화의 조직으로 돌아온다
+  await expect(page.getByRole("button", { name: "조직 선택" })).not.toContainText("E2E 두 번째 조직");
+  // 뒤 테스트가 첫 조직을 쓰므로 두 번째 조직은 지운다.
+  await page.evaluate(async () => {
+    const orgs = (await (await fetch("/api/v1/organizations")).json()) as { id: string; name: string }[];
+    const extra = orgs.find((o) => o.name === "E2E 두 번째 조직");
+    if (extra) await fetch(`/api/v1/organizations/${extra.id}`, { method: "DELETE" });
+  });
 });
 
 test("프로젝트 등록과 기능 관리·사무실 화면", async ({ page }) => {
