@@ -12,8 +12,11 @@ export type AgentStatus =
 
 export type ApprovalGroup = "shell" | "file_write" | "file_delete" | "network" | "delegate" | "mcp";
 
+/** auto: 묶음별 승인(require_approval)을 적용하지 않고 Claude Code의 판단에 맡긴다. 되물으면 앱 승인으로 묻는다. */
+export type PermissionMode = "default" | "acceptEdits" | "plan" | "auto";
+
 export interface AgentPermissions {
-  permission_mode: "default" | "acceptEdits" | "plan";
+  permission_mode: PermissionMode;
   file_scope: string[];
   allow_shell: boolean;
   allow_network: boolean;
@@ -21,6 +24,8 @@ export interface AgentPermissions {
   allow_file_delete: boolean;
   require_approval: ApprovalGroup[];
   can_delegate: boolean;
+  /** 허용 리스트(`Bash(npm test:*)` 등). 맞는 호출은 묻지 않는다. 서버가 검증·정리해 돌려준다. */
+  allow_rules: string[];
 }
 
 export interface Agent {
@@ -152,9 +157,53 @@ export interface Approval {
   agent_id: string;
   kind: string;
   summary: string;
-  detail: { tool?: string; target?: string; group?: string | null; reason?: string };
+  detail: ApprovalDetail;
   status: string;
   created_at: string;
+}
+
+/** 승인 요청의 출처. hook: 우리 정책이 물음, runtime: Claude Code가 스스로 되물음(auto 모드). */
+export type ApprovalSource = "hook" | "runtime";
+
+export interface ApprovalDetail {
+  tool?: string;
+  target?: string;
+  /** auto 되묻기 등에서는 null일 수 있다. */
+  group?: ApprovalGroup | null;
+  reason?: string;
+  source?: ApprovalSource;
+  /** '항상 허용'을 누르면 추가될 규칙. 만들 수 없으면 null이고 사유는 always_reason. */
+  always_rule?: string | null;
+  always_reason?: string | null;
+  conversation_id?: string;
+  message_id?: string;
+}
+
+/** `approval.requested` 이벤트의 approval. */
+export interface ApprovalRequest {
+  id: string;
+  agent_id: string;
+  agent_name: string;
+  tool: string;
+  target: string;
+  group: ApprovalGroup | null;
+  reason?: string;
+  source?: ApprovalSource;
+  always_rule?: string | null;
+  always_reason?: string | null;
+  message_id?: string;
+}
+
+/** POST /approvals/{id}/decision 본문. always는 allow=true일 때만 쓸 수 있다. */
+export interface DecisionRequest {
+  allow: boolean;
+  always?: boolean;
+}
+
+export interface DecisionResponse {
+  status: "approved" | "denied";
+  /** always=true로 보냈을 때만 온다. rule이 null이면 규칙을 만들지 못해 이번만 허용된 것이다. */
+  always?: { rule: string | null; added: boolean; reason: string | null };
 }
 
 export interface ActivityItem {
@@ -438,9 +487,19 @@ function messageOf(detail: unknown, status: number): string {
   if (typeof detail === "string") return detail;
   if (detail && typeof detail === "object" && "message" in detail) return String((detail as { message: unknown }).message);
   if (Array.isArray(detail) && detail[0] && typeof detail[0] === "object" && "msg" in detail[0]) {
-    return String((detail[0] as { msg: unknown }).msg);
+    // 검증기가 낸 사유 앞에 pydantic이 붙이는 머리말은 뗀다.
+    return String((detail[0] as { msg: unknown }).msg).replace(/^Value error, /, "");
   }
   return `요청이 실패했습니다(HTTP ${status}).`;
+}
+
+/** 422 검증 오류 중 그 필드(loc에 포함)에 대한 사유. 없으면 null. */
+export function fieldError(error: unknown, field: string): string | null {
+  if (!(error instanceof ApiError) || !Array.isArray(error.detail)) return null;
+  for (const item of error.detail as { loc?: unknown; msg?: unknown }[]) {
+    if (Array.isArray(item?.loc) && item.loc.includes(field)) return String(item.msg ?? "").replace(/^Value error, /, "");
+  }
+  return null;
 }
 
 export interface AuthUser {

@@ -34,6 +34,26 @@ async function openNode(page: Page, name: string) {
   }).toPass({ timeout: 15_000 });
 }
 
+/** 권한 표의 칸 버튼(aria-label이 "에이전트 열: 상태. …"로 시작한다). */
+function cellOf(page: Page, agent: string, column: string) {
+  return page.getByRole("button", { name: new RegExp(`^${agent} ${column}: `) });
+}
+
+/** 칸을 눌러 원하는 상태로 만든다(허용 → 승인 필요 → 금지 순환). 금지 → 허용은 넓히는 변경이라 확인 창을 거친다. */
+async function setCell(page: Page, agent: string, column: string, target: "allow" | "ask" | "deny") {
+  const cell = cellOf(page, agent, column);
+  await expect(cell).toBeVisible();
+  for (let i = 0; i < 3; i += 1) {
+    const state = await cell.getAttribute("data-state");
+    if (state === target) return;
+    await cell.click();
+    if (state === "deny") await page.getByRole("button", { name: "권한 확대 적용" }).click();
+    await expect(cell).not.toHaveAttribute("data-state", state ?? "");
+    await expect(cell).toBeEnabled();
+  }
+  await expect(cell).toHaveAttribute("data-state", target);
+}
+
 test.beforeEach(({ page }) => {
   page.on("console", (msg) => {
     // 401(로그인 전·틀린 비밀번호)은 의도된 응답이라 브라우저가 남기는 리소스 오류 로그에서 제외한다.
@@ -121,7 +141,9 @@ test("커맨드 센터: 스트리밍 응답·명령·멘션 자동완성·승인
   await input.press("Enter");
   const banner = page.getByRole("alert").filter({ hasText: "실행 승인을 요청합니다" });
   await expect(banner).toBeVisible();
-  await banner.getByRole("button", { name: "허용" }).click();
+  // Write 요청은 만들어질 규칙(작업 폴더 기준 상대 경로)을 글자로 보여 준다.
+  await expect(banner.getByText("Edit(e2e.txt)")).toBeVisible();
+  await banner.getByRole("button", { name: "이번만 허용" }).click();
   await expect(page.getByText("파일 쓰기가 승인되었습니다.")).toBeVisible();
 
   await input.fill("[위임:QA 엔지니어] 점검해 줘");
@@ -130,6 +152,131 @@ test("커맨드 센터: 스트리밍 응답·명령·멘션 자동완성·승인
   await expect(page.getByText("보고를 취합했습니다.")).toBeVisible();
   await expect(page.getByText("[QA 엔지니어의 보고 — 작업 상태: done]")).toBeVisible();
   await expect(page.getByRole("complementary", { name: "실행 현황" }).getByText("E2E 위임 작업")).toBeVisible();
+});
+
+test("권한 표: 셸 금지가 저장되고 조직도 배지에 반영", async ({ page }) => {
+  await login(page);
+  await page.getByRole("link", { name: "조직", exact: true }).click();
+  const qa = page.locator(".react-flow__node").filter({ hasText: "QA 엔지니어" });
+
+  // 먼저 셸을 '승인 필요'로 맞춘다(금지에서 넓히는 길이면 확인 창을 거친다) → 배지에 '셸 금지'가 없다.
+  await page.getByRole("tab", { name: "권한" }).click();
+  await setCell(page, "QA 엔지니어", "셸", "ask");
+  await page.getByRole("tab", { name: "조직도" }).click();
+  await expect(qa.getByText("승인 필요")).toBeVisible();
+  await expect(qa.getByText("셸 금지")).toHaveCount(0);
+
+  // 금지로 바꾸면(좁히는 변경이라 확인 창 없음) 저장되고 배지가 생긴다. 새로고침해도 남는다.
+  await page.getByRole("tab", { name: "권한" }).click();
+  await setCell(page, "QA 엔지니어", "셸", "deny");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("tab", { name: "조직도" }).click();
+  await expect(qa.getByText("셸 금지")).toBeVisible();
+  await page.reload();
+  await expect(qa.getByText("셸 금지")).toBeVisible();
+
+  // 넓히는 변경을 확인 창에서 취소하면 저장되지 않는다.
+  await page.getByRole("tab", { name: "권한" }).click();
+  const shell = cellOf(page, "QA 엔지니어", "셸");
+  await shell.click();
+  const dialog = page.getByRole("dialog", { name: "권한을 넓힐까요?" });
+  await expect(dialog.getByText("셸: 금지 → 허용")).toBeVisible();
+  await dialog.getByRole("button", { name: "취소" }).click();
+  await expect(shell).toHaveAttribute("data-state", "deny");
+  await expect(shell).toBeFocused();
+
+  // 조직도 노드의 프리셋 메뉴는 버튼(키보드)으로 열리고 Esc로 닫히며 포커스가 버튼으로 돌아온다.
+  await page.getByRole("tab", { name: "조직도" }).click();
+  const menuButton = page.getByRole("button", { name: "QA 엔지니어 권한 프리셋" });
+  await menuButton.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menuitem", { name: "안전(읽기만)" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(menuButton).toBeFocused();
+  await expect(page).toHaveURL(/\/organization$/);
+  // 우클릭으로도 같은 메뉴가 열린다.
+  await qa.click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "표준(편집·셸 승인)" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  expect(consoleErrors, consoleErrors.join("\n")).toEqual([]);
+});
+
+test("권한 프리셋 '안전' 적용 후 에이전트 편집 창 값 일치", async ({ page }) => {
+  await login(page);
+  await page.getByRole("link", { name: "조직", exact: true }).click();
+  await page.getByRole("tab", { name: "권한" }).click();
+  await page.getByRole("checkbox", { name: "QA 엔지니어 선택" }).check();
+  await expect(page.getByText("선택 1명에 적용")).toBeVisible();
+  await page.getByRole("button", { name: "안전(읽기만)" }).click();
+  // '안전'은 금지·승인 필요로만 바꾸지만, 템플릿 값에 따라 넓어지는 칸이 있으면(예: MCP) 확인 창이 뜬다.
+  const confirm = page.getByRole("button", { name: "권한 확대 적용" });
+  await expect(async () => {
+    if (await confirm.isVisible()) await confirm.click();
+    await expect(cellOf(page, "QA 엔지니어", "파일 수정")).toHaveAttribute("data-state", "deny", { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  for (const [column, state] of [["셸", "deny"], ["삭제", "deny"], ["네트워크", "deny"], ["MCP", "ask"]] as const) {
+    await expect(cellOf(page, "QA 엔지니어", column)).toHaveAttribute("data-state", state);
+  }
+  await expect(page.getByRole("combobox", { name: "QA 엔지니어 권한 모드" })).toHaveValue("default");
+
+  await page.getByRole("link", { name: /^QA 엔지니어 허용 규칙 \d+개, 전체 편집$/ }).click();
+  await expect(page).toHaveURL(/\/agents\/[^/]+\?tab=settings$/);
+  await expect(page.getByRole("switch", { name: /^셸 명령/ })).not.toBeChecked();
+  await expect(page.getByRole("switch", { name: /^파일 생성·수정/ })).not.toBeChecked();
+  await expect(page.getByRole("switch", { name: /^파일 삭제/ })).not.toBeChecked();
+  await expect(page.getByRole("switch", { name: /^웹 검색·가져오기/ })).not.toBeChecked();
+  for (const name of ["셸 명령 실행", "파일 생성·수정", "파일 삭제", "웹 검색·가져오기", "MCP 도구 사용"]) {
+    await expect(page.getByRole("checkbox", { name, exact: true })).toBeChecked();
+  }
+  await expect(page.getByLabel("Claude Code 권한 모드")).toHaveValue("default");
+  await expect(page.getByLabel("Claude Code 권한 모드").getByRole("option", { name: /^auto — 안전한 작업은 Claude가 판단/ })).toBeAttached();
+  expect(consoleErrors, consoleErrors.join("\n")).toEqual([]);
+});
+
+test("승인 배너 '항상 허용' 뒤 같은 요청은 배너 없이 진행", async ({ page }) => {
+  await login(page);
+  // CEO(프로젝트 매니저)의 셸을 '승인 필요'로 맞춘다.
+  await page.getByRole("link", { name: "조직", exact: true }).click();
+  await page.getByRole("tab", { name: "권한" }).click();
+  await setCell(page, "프로젝트 매니저", "셸", "ask");
+  await expect(page.getByRole("combobox", { name: "프로젝트 매니저 권한 모드" })).not.toHaveValue("auto");
+
+  await page.getByRole("link", { name: "커맨드 센터", exact: true }).click();
+  const input = page.getByLabel("메시지");
+  const banner = page.getByRole("alert").filter({ hasText: "실행 승인을 요청합니다" });
+  const allowed = page.getByRole("listitem").filter({ hasText: "npm test: 허용되었습니다" });
+
+  await input.fill("[셸:npm test]");
+  await input.press("Enter");
+  await expect(banner).toBeVisible();
+  // 만들어질 규칙을 글자로 보여 준다.
+  await expect(banner.getByText("Bash(npm test:*)")).toBeVisible();
+  await expect(banner.getByRole("link", { name: "권한 보기" })).toBeVisible();
+  await banner.getByRole("button", { name: "항상 허용" }).click();
+  await expect(page.getByText("허용 규칙을 추가했습니다: Bash(npm test:*)")).toBeVisible();
+  await expect(allowed).toHaveCount(1);
+  await expect(banner).toHaveCount(0);
+
+  // 같은 요청: 승인 없이 끝난다(승인을 기다렸다면 응답이 오지 않는다).
+  await input.fill("[셸:npm test]");
+  await input.press("Enter");
+  await expect(allowed).toHaveCount(2);
+  await expect(banner).toHaveCount(0);
+
+  // 규칙에 맞지 않는 명령은 여전히 묻는다. 거부는 기존대로.
+  await input.fill("[셸:git status]");
+  await input.press("Enter");
+  await expect(banner.getByText("Bash(git status:*)")).toBeVisible();
+  await banner.getByRole("button", { name: "거부" }).click();
+  await expect(page.getByRole("listitem").filter({ hasText: "git status: 거부되었습니다" })).toHaveCount(1);
+
+  // 추가된 규칙은 권한 표와 에이전트 편집 창에 보인다.
+  await page.getByRole("link", { name: "조직", exact: true }).click();
+  await page.getByRole("tab", { name: "권한" }).click();
+  await page.getByRole("link", { name: "프로젝트 매니저 허용 규칙 1개, 전체 편집" }).click();
+  await expect(page.getByRole("list", { name: "허용 규칙" }).getByText("Bash(npm test:*)")).toBeVisible();
+  expect(consoleErrors, consoleErrors.join("\n")).toEqual([]);
 });
 
 test("프로젝트 등록과 기능 관리·사무실 화면", async ({ page }) => {

@@ -22,6 +22,7 @@ const base: Omit<Agent, "id" | "name" | "is_lead" | "status" | "enabled"> = {
   permissions: {
     permission_mode: "default",
     file_scope: [],
+    allow_rules: [],
     allow_shell: false,
     allow_network: true,
     allow_file_write: true,

@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { Dialog as D, DropdownMenu as M, Tabs as T, Tooltip as TT } from "radix-ui";
+import { Dialog as D, DropdownMenu as M, Popover as P, Tabs as T, Tooltip as TT } from "radix-ui";
 import type { ComponentProps, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -16,17 +16,21 @@ export function DialogContent({
   children,
   className,
   wide,
+  onCloseAutoFocus,
 }: {
   title: string;
   description?: ReactNode;
   children: ReactNode;
   className?: string;
   wide?: boolean;
+  /** 닫힐 때 포커스를 돌려줄 곳을 직접 정할 때(연 요소가 사라진 경우 등). */
+  onCloseAutoFocus?: (event: Event) => void;
 }) {
   return (
     <D.Portal>
       <D.Overlay className="fixed inset-0 z-40 bg-scrim backdrop-blur-[1px]" />
       <D.Content
+        onCloseAutoFocus={onCloseAutoFocus}
         className={cn(
           "overlay-in fixed top-1/2 left-1/2 z-50 flex max-h-[88vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-border-strong bg-surface-1 shadow-overlay",
           wide ? "max-w-4xl" : "max-w-lg",
@@ -93,6 +97,29 @@ export function MenuLabel({ className, ...props }: ComponentProps<typeof M.Label
 }
 
 export const MenuSeparator = () => <M.Separator className="my-1 h-px bg-border" />;
+
+// ── Popover ───────────────────────────────────────────────────────────────
+
+export const Popover = P.Root;
+export const PopoverTrigger = P.Trigger;
+export const PopoverClose = P.Close;
+
+/** 이름 있는 대화형 팝오버. Esc·바깥 클릭으로 닫히고 포커스는 연 버튼으로 돌아간다(Radix 기본 동작). */
+export function PopoverContent({ className, ...props }: ComponentProps<typeof P.Content>) {
+  return (
+    <P.Portal>
+      <P.Content
+        sideOffset={6}
+        collisionPadding={8}
+        className={cn(
+          "overlay-in z-50 w-80 rounded-lg border border-border-strong bg-surface-2 p-3 shadow-overlay outline-none",
+          className,
+        )}
+        {...props}
+      />
+    </P.Portal>
+  );
+}
 
 // ── Tabs ──────────────────────────────────────────────────────────────────
 

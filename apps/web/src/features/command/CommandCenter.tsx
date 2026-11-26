@@ -3,10 +3,11 @@
  * 스트리밍 텍스트와 도구 활동은 WebSocket 이벤트로 받아 화면에만 누적하고, 완료되면 서버의 확정본으로 바꾼다.
  */
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Building2,
   Check,
+  CheckCheck,
   FolderGit2,
   GitBranch,
   Hand,
@@ -14,12 +15,13 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Plus,
+  ShieldAlert,
   Sparkles,
   User,
   Users,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 
@@ -31,12 +33,18 @@ import { Dialog, DialogContent, DialogFooter, Menu, MenuContent, MenuItem, MenuL
 import {
   type ActivityEntry,
   type Agent,
+  type ApprovalRequest,
+  type ApprovalSource,
   type ContextItem,
   type Conversation,
   type ConversationDetail,
+  type DecisionRequest,
+  type DecisionResponse,
   type Task,
   api,
 } from "@/lib/api";
+import { PermissionPopover } from "@/features/permissions/PermissionPopover";
+import { usePermissionChange } from "@/features/permissions/usePermissionChange";
 import { onLive } from "@/lib/live";
 import {
   useApprovals,
@@ -359,7 +367,7 @@ function ChatPane({
           ))}
         </div>
       </div>
-      <PendingApprovalBanner conversationId={c.id} />
+      <PendingApprovalBanner conversationId={c.id} agents={agents} />
       <div className="mx-auto w-full max-w-3xl">
         <Composer
           agents={agents}
@@ -597,51 +605,150 @@ function PathPicker({
 
 // ── 승인·실행 패널 ────────────────────────────────────────────────────────
 
+const DECISION_KEY = ["approval-decision"];
+
+/**
+ * 승인 결정. busy는 결정 요청을 보내고 승인 목록을 다시 받을 때까지 참이다(배너·실행 패널이 함께 본다).
+ * 그동안 결정 버튼을 잠가, 이미 처리된 요청을 다시 눌러 409가 나는 일을 막는다.
+ */
 function useDecide() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, allow }: { id: string; allow: boolean }) => api(`/approvals/${id}/decision`, { method: "POST", body: { allow } }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["approvals"] }),
+  const busy = useIsMutating({ mutationKey: DECISION_KEY }) > 0;
+  const mutation = useMutation({
+    mutationKey: DECISION_KEY,
+    mutationFn: ({ id, allow, always }: { id: string } & DecisionRequest) =>
+      api<DecisionResponse>(`/approvals/${id}/decision`, { method: "POST", body: always ? { allow, always } : { allow } }),
+    // 목록을 다시 받을 때까지 기다린다(그동안 busy).
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["approvals"] }),
+    onSuccess: (result) => {
+      if (!result.always) return;
+      // '항상 허용': 규칙이 그 에이전트의 허용 리스트에 더해졌으면 권한을 다시 불러온다.
+      const { rule, added, reason } = result.always;
+      if (rule === null) toast.warning(`이번만 허용했습니다. ${reason ?? "규칙을 만들 수 없는 요청입니다."}`);
+      else toast.success(added ? `허용 규칙을 추가했습니다: ${rule}` : `이미 있는 허용 규칙입니다: ${rule}`);
+      void queryClient.invalidateQueries({ queryKey: ["organization"] });
+      void queryClient.invalidateQueries({ queryKey: ["agent"] });
+    },
     onError: (e) => toast.error(e.message),
   });
+  return { mutate: mutation.mutate, busy };
 }
 
-function PendingApprovalBanner({ conversationId }: { conversationId: string }) {
+/**
+ * 승인 요청의 결정 버튼: 거부 · 권한 보기 · 이번만 허용 · 항상 허용.
+ * '항상 허용'은 추가될 규칙을 글자로 보여 준다. 규칙을 만들 수 없는 요청이면 버튼을 끄고 사유를 보인다.
+ */
+function ApprovalActions({
+  id,
+  agentId,
+  alwaysRule,
+  alwaysReason,
+  source,
+  decide,
+}: {
+  id: string;
+  agentId: string;
+  alwaysRule: string | null | undefined;
+  alwaysReason: string | null | undefined;
+  source?: ApprovalSource;
+  decide: ReturnType<typeof useDecide>;
+}) {
+  const noteId = useId();
+  return (
+    <>
+      <p id={noteId} className="text-xs text-muted">
+        {source === "runtime" ? <span className="block text-faint">auto 모드에서 Claude Code가 확인을 요청했습니다.</span> : null}
+        {alwaysRule ? (
+          <>
+            '항상 허용'을 누르면 이 에이전트의 허용 규칙에 추가됩니다:{" "}
+            <code className="font-mono break-all text-fg">{alwaysRule}</code>
+            {/^Bash\(.*:\*\)$/.test(alwaysRule) ? (
+              <span className="block text-faint">이 접두로 시작하는 명령은 앞으로 묻지 않습니다(스크립트를 실행하는 명령이면 그 내용까지).</span>
+            ) : null}
+          </>
+        ) : (
+          <>항상 허용할 수 없음: {alwaysReason || "이 요청으로는 허용 규칙을 만들 수 없습니다."}</>
+        )}
+      </p>
+      <span className="flex flex-wrap items-center justify-end gap-1.5">
+        <Button size="sm" variant="ghost" asChild>
+          <Link to={`/agents/${agentId}?tab=settings`}>
+            <ShieldAlert /> 권한 보기
+          </Link>
+        </Button>
+        <Button size="sm" variant="ghost" disabled={decide.busy} onClick={() => decide.mutate({ id, allow: false })}>
+          거부
+        </Button>
+        <Button size="sm" variant="secondary" disabled={decide.busy} onClick={() => decide.mutate({ id, allow: true })}>
+          <Check /> 이번만 허용
+        </Button>
+        <Button
+          size="sm"
+          variant="warning"
+          disabled={!alwaysRule || decide.busy}
+          aria-describedby={noteId}
+          onClick={() => decide.mutate({ id, allow: true, always: true })}
+        >
+          <CheckCheck /> 항상 허용
+        </Button>
+      </span>
+    </>
+  );
+}
+
+function PendingApprovalBanner({ conversationId, agents }: { conversationId: string; agents: Agent[] }) {
   const { orgId } = useCurrentOrg();
-  const [pending, setPending] = useState<{ id: string; agent_name: string; tool: string; target: string; reason?: string }[]>([]);
+  const [pending, setPending] = useState<ApprovalRequest[]>([]);
+  const [resolved, setResolved] = useState<Set<string>>(new Set());
   const approvals = useApprovals(orgId);
   const decide = useDecide();
   useEffect(
     () =>
       onLive((event) => {
         if (event.type === "approval.requested" && event.conversation_id === conversationId) {
-          const a = event.approval as { id: string; agent_name: string; tool: string; target: string; reason?: string };
-          setPending((p) => [...p, a]);
+          const a = event.approval as ApprovalRequest;
+          setPending((p) => [...p.filter((x) => x.id !== a.id), a]);
         } else if (event.type === "approval.resolved") {
-          setPending((p) => p.filter((x) => x.id !== event.approval_id));
+          const id = String(event.approval_id);
+          setPending((p) => p.filter((x) => x.id !== id));
+          setResolved((r) => new Set(r).add(id));
         }
       }),
     [conversationId],
   );
-  // 새로고침 뒤에도 서버 목록과 맞춘다.
-  const open = pending.filter((p) => approvals.data?.some((a) => a.id === p.id) ?? true);
+  // 서버 목록이 기준이다(새로고침 뒤에도 이 대화의 대기 요청이 보인다).
+  // 실시간 이벤트는 목록을 다시 받는 동안의 틈만 메운다: 방금 온 요청은 먼저 보이고, 방금 처리된 요청은 먼저 사라진다.
+  const listed = (approvals.data ?? []).filter((a) => a.detail?.conversation_id === conversationId);
+  const fresh = !approvals.data || approvals.isFetching ? pending.filter((p) => !listed.some((a) => a.id === p.id)) : [];
+  const open: ApprovalRequest[] = [
+    ...listed.map((a) => ({
+          id: a.id,
+          agent_id: a.agent_id,
+          agent_name: agents.find((x) => x.id === a.agent_id)?.name ?? "에이전트",
+          tool: a.detail.tool ?? a.summary,
+          target: a.detail.target ?? "",
+          group: a.detail.group ?? null,
+          reason: a.detail.reason,
+          source: a.detail.source,
+      always_rule: a.detail.always_rule,
+      always_reason: a.detail.always_reason,
+    })),
+    ...fresh,
+  ].filter((a) => !resolved.has(a.id));
   if (open.length === 0) return null;
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-1.5 px-4 pb-2" role="alert">
       {open.map((a) => (
-        <div key={a.id} className="flex items-center gap-3 rounded-md border border-warning-border bg-warning-surface px-3 py-2">
-          <Hand className="size-4 shrink-0 text-warning" aria-hidden />
-          <span className="min-w-0 flex-1 text-sm">
-            <span className="font-medium">{a.agent_name}</span>이(가) <span className="font-medium">{a.tool}</span> 실행 승인을 요청합니다
-            {a.target ? <code className="mt-0.5 block truncate font-mono text-xs text-muted">{a.target}</code> : null}
-            {a.reason ? <span className="mt-0.5 block text-xs text-warning">{a.reason}</span> : null}
-          </span>
-          <Button size="sm" variant="ghost" onClick={() => decide.mutate({ id: a.id, allow: false })}>
-            거부
-          </Button>
-          <Button size="sm" variant="warning" onClick={() => decide.mutate({ id: a.id, allow: true })}>
-            <Check /> 허용
-          </Button>
+        <div key={a.id} className="flex flex-col gap-2 rounded-md border border-warning-border bg-warning-surface px-3 py-2">
+          <div className="flex items-start gap-3">
+            <Hand className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+            <span className="min-w-0 flex-1 text-sm">
+              <span className="font-medium">{a.agent_name}</span>이(가) <span className="font-medium">{a.tool}</span> 실행 승인을 요청합니다
+              {a.target ? <code className="mt-0.5 block truncate font-mono text-xs text-muted">{a.target}</code> : null}
+              {a.reason ? <span className="mt-0.5 block text-xs text-warning">{a.reason}</span> : null}
+            </span>
+          </div>
+          <ApprovalActions id={a.id} agentId={a.agent_id} alwaysRule={a.always_rule} alwaysReason={a.always_reason} source={a.source} decide={decide} />
         </div>
       ))}
     </div>
@@ -652,6 +759,8 @@ function ExecutionPanel({ orgId, agents }: { orgId: string; agents: Agent[]; con
   const approvals = useApprovals(orgId);
   const tasks = useTasks(orgId);
   const decide = useDecide();
+  const permissions = usePermissionChange();
+  const agentOf = (id: string) => agents.find((a) => a.id === id);
   const [events, setEvents] = useState<{ key: string; agentId: string; entry: ActivityEntry }[]>([]);
   const [sections, setSections] = useState({ approvals: true, agents: true, events: true, tasks: true });
   useEffect(
@@ -674,24 +783,37 @@ function ExecutionPanel({ orgId, agents }: { orgId: string; agents: Agent[]; con
     <aside className="flex min-h-0 flex-col overflow-y-auto border-l border-border bg-surface-1 max-xl:hidden" aria-label="실행 현황">
       <PanelSection title={`승인 대기 ${approvals.data?.length ?? 0}`} open={sections.approvals} onToggle={() => toggle("approvals")}>
         {(approvals.data ?? []).length === 0 ? <p className="text-xs text-faint">없음</p> : null}
-        {(approvals.data ?? []).map((a) => (
-          <div key={a.id} className="flex flex-col gap-1.5 rounded-md border border-warning-border bg-warning-surface px-2.5 py-2">
-            <span className="text-xs">
-              <span className="font-medium">{name(a.agent_id)}</span>
-              <span className="text-faint"> · {timeAgo(a.created_at)}</span>
-            </span>
-            <code className="font-mono text-2xs break-all text-muted">{a.summary}</code>
-            {a.detail?.reason ? <span className="text-2xs text-warning">{a.detail.reason}</span> : null}
-            <span className="flex justify-end gap-1.5">
-              <Button size="sm" variant="ghost" onClick={() => decide.mutate({ id: a.id, allow: false })}>
-                거부
-              </Button>
-              <Button size="sm" variant="warning" onClick={() => decide.mutate({ id: a.id, allow: true })}>
-                허용
-              </Button>
-            </span>
-          </div>
-        ))}
+        {(approvals.data ?? []).map((a) => {
+          const agent = agentOf(a.agent_id);
+          return (
+            <div key={a.id} className="flex flex-col gap-1.5 rounded-md border border-warning-border bg-warning-surface px-2.5 py-2">
+              <span className="flex items-center gap-1 text-xs">
+                {agent ? (
+                  <PermissionPopover
+                    agent={agent}
+                    request={permissions.request}
+                    confirming={permissions.confirming}
+                    pending={permissions.pending}
+                    className="font-medium"
+                  />
+                ) : (
+                  <span className="font-medium">—</span>
+                )}
+                <span className="shrink-0 text-faint"> · {timeAgo(a.created_at)}</span>
+              </span>
+              <code className="font-mono text-2xs break-all text-muted">{a.summary}</code>
+              {a.detail?.reason ? <span className="text-2xs text-warning">{a.detail.reason}</span> : null}
+              <ApprovalActions
+                id={a.id}
+                agentId={a.agent_id}
+                alwaysRule={a.detail?.always_rule}
+                alwaysReason={a.detail?.always_reason}
+                source={a.detail?.source}
+                decide={decide}
+              />
+            </div>
+          );
+        })}
       </PanelSection>
       <PanelSection title={`실행 중 ${active.length}`} open={sections.agents} onToggle={() => toggle("agents")}>
         {active.length === 0 ? <p className="text-xs text-faint">지금 일하는 에이전트가 없습니다.</p> : null}
@@ -702,7 +824,7 @@ function ExecutionPanel({ orgId, agents }: { orgId: string; agents: Agent[]; con
               <AgentAvatar id={a.id} lead={a.is_lead} size={26} />
               <div className="min-w-0 flex-1">
                 <span className="flex items-center justify-between gap-2 text-sm">
-                  <span className="truncate">{a.name}</span>
+                  <PermissionPopover agent={a} request={permissions.request} confirming={permissions.confirming} pending={permissions.pending} />
                   <AgentStatus status={a.status} />
                 </span>
                 {latest ? (
@@ -748,6 +870,7 @@ function ExecutionPanel({ orgId, agents }: { orgId: string; agents: Agent[]; con
       <p className="mt-auto px-3 py-3 text-2xs text-faint">
         진행률은 표시하지 않습니다. Claude Code는 진행률을 알려 주지 않으며, 보이는 것은 모두 실제 실행 이벤트입니다.
       </p>
+      {permissions.dialog}
     </aside>
   );
 }
