@@ -28,7 +28,7 @@
 | `system_prompt` | `{"type":"preset","preset":"claude_code","append": 조직·역할 지침}` | Claude Code 기본 동작 유지 + 역할 부여 |
 | `setting_sources` | `["project"]` | 사용자 전역 allow 규칙이 앱 승인을 건너뛰지 않게 |
 | `disallowed_tools` | 권한에서 끈 도구 묶음(Bash 등) | deny 규칙은 모든 모드에서 우선 |
-| `permission_mode` | default · plan · acceptEdits (bypassPermissions 금지) | |
+| `permission_mode` | default · acceptEdits · plan · auto (bypassPermissions·dontAsk 금지) | auto의 실제 Claude Code 동작은 미검증(§5) |
 | `add_dirs` | 첨부 파일 폴더 | Read 도구로 첨부를 읽게 |
 | `skills` | 에이전트에게 허용된 Skill 이름 | SDK의 Skills 제한 옵션 |
 | `mcp_servers`, `strict_mcp_config=True` | 에이전트에게 허용된 MCP 서버의 원본 설정만 | 허용하지 않은 서버(사용자·프로젝트 설정)는 붙지 않음 |
@@ -57,10 +57,24 @@
 
 ## 5. 권한과 승인
 
-1. 모든 도구 호출은 먼저 **PreToolUse 훅**에서 `policy.decide`로 판정된다: 허용 범위 밖 경로 → 거부, 꺼진 묶음 → 거부,
-   `require_approval` 묶음 → 사용자 승인 대기, 그 외 → 통과.
+1. 모든 도구 호출은 먼저 **PreToolUse 훅**에서 `policy.decide`로 판정된다(출처 `hook`): 꺼진 묶음 → 거부, 허용 범위 밖 경로 →
+   파일 도구는 거부(Glob `pattern`·Grep `glob` 포함)·셸은 사용자 승인, 허용 리스트 일치 → 허용, (auto가 아니면) `require_approval` 묶음 → 사용자 승인 대기, 그 외 → 통과.
+   판단 순서와 허용 리스트는 [SECURITY.md](SECURITY.md) §3.
 2. 훅은 거부하거나 통과시킬 뿐 `allow`를 반환하지 않는다(Claude Code 확인을 건너뛰어 권한을 넓히지 않음).
-3. 그 뒤 Claude Code가 자체 규칙으로 확인을 요청하면 `can_use_tool`이 불리고, 훅에서 이미 통과한 호출이면 허용한다.
+3. 그 뒤 Claude Code가 자체 규칙으로 확인을 요청하면 `can_use_tool`이 불린다.
+   - default·acceptEdits·plan: 훅을 통과한 호출이면 다시 묻지 않고 허용한다.
+   - auto: 훅에서 **명시적으로 허용된** 호출(사용자 승인·허용 규칙 일치, `PermissionDecision.explicit`)만 그렇게 허용한다.
+     정책이 단순 통과시킨 호출이면 출처 `runtime`으로 정책에 다시 물어 사용자 승인 요청을 만든다.
+
+권한 콜백은 `(도구, 입력, 출처)`를 받는다. 출처(`PermissionSource`)는 `hook`(PreToolUse) 또는 `runtime`(`can_use_tool`)이고,
+승인 요청의 `source` 필드로 화면까지 전달된다. 권한은 호출마다 DB에서 다시 읽고, 권한 모드만 실행을 시작할 때의 값을 쓴다.
+
+**auto 모드 미검증**: 위 3의 auto 동작은 가짜 런타임과 SDK 콜백을 직접 부르는 자동 테스트로만 확인했다. 실제 Claude Code에서
+훅이 auto 분류기보다 먼저 불리는지, 분류기가 막을 때 `can_use_tool`로 되묻는지, auto를 지원하는 CLI 버전은 확인하지 않았다.
+
+**가짜 런타임 표식**(`AI_ORG_RUNTIME=fake`, `runtime/fake.py`): `[셸:명령]`은 그 Bash 명령을 출처 `hook`으로 정책에 묻는다.
+`[되묻기:명령]`은 같은 요청 뒤에, auto 모드이고 정책이 단순 통과시킨 호출이면 출처 `runtime`으로 한 번 더 묻는다(다른 모드에서는 다시 묻지 않는다).
+한 메시지에 여러 개 쓸 수 있고 적힌 순서대로 처리하며, 명령에 `]`는 쓸 수 없다. 명령을 실제로 실행하지는 않는다.
 
 **왜 훅인가(실측)**: `can_use_tool`만 쓰면 Claude Code가 묻지 않고 허용하는 읽기 전용 명령(`echo` 등)이 승인 없이 실행됐다.
 **구조화 출력 주의(실측)**: Claude Code는 구조화 출력을 내부 도구 `StructuredOutput` 호출로 전달한다. 설계 담당자의 '모든 도구 거부'
