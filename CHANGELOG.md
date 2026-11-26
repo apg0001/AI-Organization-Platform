@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-26
+
+데스크톱 설치 파일은 여전히 서명하지 않았다.
+
 권한 개선(#81): 실제 Claude Code에서의 auto 모드 동작은 아직 검증하지 않았다(가짜 런타임·자동 테스트 기준). 자세한 한계는 `docs/SECURITY.md` §3.5.
 
 ### 추가
@@ -94,7 +98,8 @@
 - 보안: 셸 명령 안의 작업 폴더 밖 경로를 감지해 사용자 승인을 요구(승인 요청에 사유 표시).
 - 라이선스: Apache License 2.0 적용(LICENSE, NOTICE).
 
-[Unreleased]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.3.0...develop
+[Unreleased]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.4.0...develop
+[0.4.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/apg0001/AI-Organization-Platform/releases/tag/v0.1.0
