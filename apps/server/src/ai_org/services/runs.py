@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import re
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
@@ -42,6 +43,8 @@ from ai_org.services import policy, rules
 from ai_org.services.bus import EventBus
 from ai_org.services.capabilities import resolve_mcp_servers, resolve_plugin_paths
 from ai_org.services.prompting import ContextLines, system_append, user_prompt
+
+log = logging.getLogger(__name__)
 
 GITHUB_REPO = re.compile(r"^[\w.-]+/[\w.-]+$")
 MAX_TASK_RESULT = 4000
@@ -142,6 +145,19 @@ class PendingRequest:
     tool_input: dict[str, Any]
     always_rule: str | None
     always_reason: str
+
+
+def route_json(route: Route) -> dict[str, Any]:
+    """대기열에 저장할 수 있게 라우팅을 값으로 바꾼다(전달할 때 다시 Route로 만든다)."""
+    return {
+        "agent_id": route.agent.id,
+        "scope": route.scope,
+        "team_id": route.team.id if route.team else None,
+        "broadcast": route.broadcast,
+    }
+
+
+QUEUE_WAITING, QUEUE_DELIVERED, QUEUE_CANCELLED = "waiting", "delivered", "cancelled"
 
 
 @dataclass
@@ -298,6 +314,8 @@ class RunManager:
         self.pending: dict[str, asyncio.Future[PermissionDecision]] = {}
         self.pending_requests: dict[str, PendingRequest] = {}
         self.limit = asyncio.Semaphore(settings.max_concurrent_runs)
+        # 종료 중에는 대기 메시지를 새로 실행하지 않는다.
+        self.closing = False
 
     # ── 시작 시 복구 ───────────────────────────────────────────────────────
 
@@ -320,12 +338,117 @@ class RunManager:
             for task in db.scalars(select(Task).where(Task.status == "running")):
                 task.status = "failed"
                 task.result = "서버 재시작으로 중단됨"
+            for user_msg in db.scalars(select(ChatMessage).where(ChatMessage.role == "user")):
+                if (user_msg.data or {}).get("queue_state") == QUEUE_WAITING:
+                    user_msg.data = {
+                        **user_msg.data,
+                        "queue_state": QUEUE_CANCELLED,
+                        "queue_note": "서버가 재시작되어 전달하지 못했습니다.",
+                    }
             db.commit()
 
     # ── 실행 ───────────────────────────────────────────────────────────────
 
     def is_busy(self, conversation_id: str) -> bool:
         return any(r.conversation_id == conversation_id for r in self.runs.values())
+
+    def busy_agents(self, conversation_id: str) -> set[str]:
+        """이 대화에서 지금 응답 중인 에이전트(위임으로 실행 중인 것 포함)."""
+        return {r.agent_id for r in self.runs.values() if r.conversation_id == conversation_id}
+
+    # ── 작업 중 보낸 메시지(대기열) ────────────────────────────────────────
+    # 응답 중인 에이전트에게 보낸 메시지는 거절하지 않고 user 메시지에 대기 표시(data.queued)를 남긴다.
+    # 그 에이전트의 실행이 이 대화에서 모두 끝나면 대기 메시지를 순서대로 모아
+    # 같은 세션(resume)으로 이어서 보낸다.
+    # 실행 중인 턴 한가운데에 끼워 넣지는 않는다(런타임이 턴 단위로 프로세스를 띄움).
+
+    def deliver_queued(self, conversation_id: str, agent_id: str) -> ChatMessage | None:
+        if self.closing or agent_id in self.busy_agents(conversation_id):
+            return None
+        with self.factory() as db:
+            conv = db.get(Conversation, conversation_id)
+            if conv is None:
+                return None
+            waiting = [
+                m
+                for m in db.scalars(
+                    select(ChatMessage)
+                    .where(ChatMessage.conversation_id == conversation_id, ChatMessage.role == "user")
+                    .order_by(ChatMessage.created_at)
+                )
+                if (m.data or {}).get("queue_state") == QUEUE_WAITING
+                and any(q.get("agent_id") == agent_id for q in m.data.get("queued", []))
+            ]
+            if not waiting:
+                return None
+            spec = next(q for q in waiting[0].data["queued"] if q.get("agent_id") == agent_id)
+            agent = db.get(Agent, agent_id)
+            if agent is None or not agent.enabled:
+                self._settle_queue(
+                    db, waiting, agent_id, "대상 에이전트를 사용할 수 없어 전달하지 못했습니다."
+                )
+                return None
+            team = db.get(Department, spec["team_id"]) if spec.get("team_id") else None
+            route = Route(
+                agent, str(spec.get("scope") or "agent"), team=team, broadcast=bool(spec.get("broadcast"))
+            )
+            files = [
+                a
+                for m in waiting
+                for info in m.data.get("attachments", [])
+                if (a := db.get(Attachment, info.get("id"))) is not None
+            ]
+            if len(waiting) == 1:
+                prompt = waiting[0].content
+            else:
+                prompt = (
+                    f"작업하는 동안 사용자가 보낸 메시지 {len(waiting)}개입니다. "
+                    "순서대로 모두 반영해 주세요.\n\n" + "\n\n---\n\n".join(m.content for m in waiting)
+                )
+            self._settle_queue(db, waiting, agent_id, None)
+            return self.launch(db, conv, route, prompt, files)
+
+    def _settle_queue(
+        self, db: Session, messages: list[ChatMessage], agent_id: str, failure: str | None
+    ) -> None:
+        """대기 메시지에서 한 에이전트 몫을 뺀다. 남은 대상이 없으면 전달 완료(또는 실패 사유와 함께 취소)."""
+        for m in messages:
+            rest = [q for q in m.data.get("queued", []) if q.get("agent_id") != agent_id]
+            data = {**m.data, "queued": rest}
+            if not rest:
+                data["queue_state"] = QUEUE_CANCELLED if failure else QUEUE_DELIVERED
+            if failure:
+                data["queue_note"] = failure
+            m.data = data
+        db.commit()
+        for m in messages:
+            self.bus.publish(
+                "message.status", conversation_id=m.conversation_id, message_id=m.id, status=m.status
+            )
+
+    def cancel_queued(self, conversation_ids: set[str], note: str, message_id: str | None = None) -> int:
+        """대기 중인 메시지를 취소한다(중지·사용자 취소). 취소한 개수를 돌려준다."""
+        if not conversation_ids:
+            return 0
+        cancelled: list[ChatMessage] = []
+        with self.factory() as db:
+            for m in db.scalars(
+                select(ChatMessage).where(
+                    ChatMessage.conversation_id.in_(conversation_ids), ChatMessage.role == "user"
+                )
+            ):
+                if (m.data or {}).get("queue_state") != QUEUE_WAITING:
+                    continue
+                if message_id is not None and m.id != message_id:
+                    continue
+                m.data = {**m.data, "queued": [], "queue_state": QUEUE_CANCELLED, "queue_note": note}
+                cancelled.append(m)
+            db.commit()
+            for m in cancelled:
+                self.bus.publish(
+                    "message.status", conversation_id=m.conversation_id, message_id=m.id, status=m.status
+                )
+        return len(cancelled)
 
     def launch(
         self,
@@ -923,6 +1046,10 @@ class RunManager:
                     entry["status"] = "cancelled" if final_status != "done" else "done"
             self._finish(run, session_row_id, final_status, error, content, activity, result)
             self.runs.pop(run.message_id, None)
+            try:
+                self.deliver_queued(run.conversation_id, run.agent_id)
+            except Exception:  # 대기 전달 실패가 끝난 실행의 정리를 막지 않게
+                log.exception("대기 메시지 전달 실패(대화 %s)", run.conversation_id)
 
     def _perms(self, agent_id: str) -> AgentPermissions:
         with self.factory() as db:
@@ -1200,6 +1327,11 @@ class RunManager:
             if (conversation_id is None or r.conversation_id == conversation_id)
             and (organization_id is None or self._org_of(r.agent_id) == organization_id)
         ]
+        # 중지하면 그 대화의 대기 메시지도 취소한다(멈춘 뒤 대기 메시지가 저절로 실행되지 않게).
+        conversations = {r.conversation_id for r in targets}
+        if conversation_id is not None:
+            conversations.add(conversation_id)
+        self.cancel_queued(conversations, "실행을 중지해 전달하지 않았습니다.")
         for run in targets:
             for approval_id in list(run.approvals):
                 self._resolve(
@@ -1218,6 +1350,7 @@ class RunManager:
             return agent.organization_id if agent else None
 
     async def shutdown(self) -> None:
+        self.closing = True
         await self.stop()
         tasks = [r.task for r in self.runs.values() if r.task is not None]
         for task in tasks:

@@ -134,9 +134,10 @@
 
 | 메서드 | 경로 | 설명 |
 |---|---|---|
-| GET/POST | `/conversations` | `?organization_id=` 목록 / `{organization_id, target_kind, target_id?, project_id?}` 생성 |
+| GET/POST | `/conversations` | `?organization_id=` 목록 / `{organization_id, target_kind, target_id?, project_id?}` 생성. `project_id`를 주지 않았고 조직에 연결된 프로젝트가 하나뿐이면 그 프로젝트로 시작한다 |
 | GET/PATCH/DELETE | `/conversations/{id}` | 메시지 포함 상세 / 제목·대상·프로젝트·컨텍스트·보관 / 삭제(첨부 파일도 삭제) |
-| POST | `/conversations/{id}/messages` | `{content, mention_agent_ids[], mention_all, attachment_ids[]}` → 202 `{user_message, assistant_message_ids}` |
+| POST | `/conversations/{id}/messages` | `{content, mention_agent_ids[], mention_all, attachment_ids[]}` → 202 `{user_message, assistant_message_ids, queued_agent_ids}`. 대상 에이전트가 이 대화에서 응답 중이면 거절하지 않고 대기열에 넣는다(user 메시지 `data.queued`, `data.queue_state`: waiting·delivered·cancelled). 그 에이전트의 실행이 끝나면 대기 메시지를 순서대로 모아 같은 세션으로 이어서 전달한다. 실행 중인 턴 한가운데에 끼워 넣지는 않는다 |
+| POST | `/conversations/{id}/messages/{mid}/cancel-queued` | 아직 전달 안 된 대기 메시지 취소(대기 중이 아니면 409). `/stop`과 서버 재시작도 대기 메시지를 취소한다 |
 | POST | `/conversations/{id}/messages/{mid}/regenerate` | 같은 질문으로 다시 생성 |
 | POST | `/conversations/{id}/stop` | 이 대화의 실행 중지 → `{stopped}` |
 | GET | `/commands` | 슬래시 명령 명세 |
@@ -182,6 +183,7 @@
 |---|---|---|
 | GET/POST/DELETE | `/project-roots[/{id}]` | 탐색 경로(`{path, max_depth 0..4}`, 루트 `/` 금지) |
 | GET | `/project-roots/scan` | 경로 아래 프로젝트 후보 |
+| GET | `/fs/browse?path=&hidden=` | 서버 컴퓨터 폴더 탐색(프로젝트 추가용). 홈 폴더 안만(심볼릭 링크 해석 후 검사, 밖이면 403), 하위 폴더 이름만(파일 제외), 숨김 폴더는 `hidden=true`일 때만, 최대 500개 → `{path, home, parent, is_git, kind, entries:[{name, path, is_git, kind}], truncated}` |
 | GET/POST | `/projects` | 목록 / 등록(등록 경로 안만, 심볼릭 링크 해석) |
 | GET/PATCH/DELETE | `/projects/{id}` | Git 정보 포함 상세 / 이름·설명·조직 / 등록 해제(파일 유지) |
 | GET | `/projects/{id}/tree?path=` | 한 단계 디렉터리 목록(프로젝트 밖 403) |

@@ -12,6 +12,7 @@ import {
   GitBranch,
   Hand,
   MessageSquarePlus,
+  MessagesSquare,
   PanelRightClose,
   PanelRightOpen,
   Plus,
@@ -20,12 +21,15 @@ import {
   User,
   Users,
   X,
+  FolderX,
 } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 
 import { AgentAvatar } from "@/components/agent/AgentAvatar";
+import { useSidebarSlot } from "@/components/layout/AppShell";
 import { AgentStatus, EmptyState, ErrorState, LoadingState } from "@/components/common/states";
 import { Button, IconButton } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/form";
@@ -60,18 +64,23 @@ import {
 import { cn, timeAgo } from "@/lib/utils";
 import { TaskStatus } from "@/features/dashboard/DashboardPage";
 
-import { Composer, type SendPayload } from "./Composer";
+import { Composer, type SendPayload, sentHistory } from "./Composer";
+import { LiveDock, type Unseen } from "./LiveDock";
+import { dockItems, showDock } from "./dockState";
 import { ACTIVITY_LABELS, MessageView } from "./Messages";
 
 const PANEL_KEY = "ai-org.command.panel";
 
 export function CommandCenter() {
-  const { orgId } = useCurrentOrg();
+  const { orgId, setOrgId } = useCurrentOrg();
   const { conversationId } = useParams();
   const navigate = useNavigate();
   const org = useOrganization(orgId);
   const conversations = useConversations(orgId);
+  const projects = useProjects();
+  const openConv = useConversation(conversationId ?? null);
   const queryClient = useQueryClient();
+  const { slot, rail } = useSidebarSlot();
   const [panelOpen, setPanelOpen] = useState(() => localStorage.getItem(PANEL_KEY) !== "closed");
   const [newOpen, setNewOpen] = useState(false);
 
@@ -80,8 +89,20 @@ export function CommandCenter() {
     if (!conversationId && conversations.data?.[0]) navigate(`/command/${conversations.data[0].id}`, { replace: true });
   }, [conversationId, conversations.data, navigate]);
 
+  // 조직과 열린 대화를 맞춘다(#79): 왼쪽 위에서 조직을 바꾸면 그 조직의 대화로 가고,
+  // 다른 조직의 대화 링크를 열면 조직을 그 대화의 조직으로 바꾼다.
+  const lastOrg = useRef(orgId);
+  useEffect(() => {
+    const convOrg = openConv.data?.organization_id;
+    const orgChanged = lastOrg.current !== orgId;
+    lastOrg.current = orgId;
+    if (!convOrg || !orgId || convOrg === orgId) return;
+    if (orgChanged) navigate("/command", { replace: true });
+    else setOrgId(convOrg);
+  }, [orgId, openConv.data?.organization_id, navigate, setOrgId]);
+
   const create = useMutation({
-    mutationFn: (body: { target_kind: string; target_id: string | null }) =>
+    mutationFn: (body: { target_kind: string; target_id: string | null; project_id?: string | null }) =>
       api<Conversation>("/conversations", { method: "POST", body: { organization_id: orgId, ...body } }),
     onSuccess: (c) => {
       void queryClient.invalidateQueries({ queryKey: ["conversations", orgId] });
@@ -101,45 +122,82 @@ export function CommandCenter() {
     );
   const agents = org.data?.agents ?? [];
 
-  return (
-    <div className={cn("grid h-full min-h-0", panelOpen ? "grid-cols-[240px_1fr_320px]" : "grid-cols-[240px_1fr]", "max-xl:grid-cols-[220px_1fr]")}>
-      <aside className="flex min-h-0 flex-col border-r border-border bg-surface-1" aria-label="대화 목록">
-        <div className="flex items-center justify-between px-3 py-2.5">
-          <h1 className="text-sm font-semibold">대화</h1>
-          <IconButton label="새 대화" size="icon-sm" onClick={() => setNewOpen(true)}>
-            <MessageSquarePlus />
-          </IconButton>
-        </div>
-        <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3">
-          {conversations.isLoading ? <LoadingState /> : null}
-          {conversations.data?.length === 0 ? (
-            <li className="px-2 py-2 text-xs text-faint">아직 대화가 없습니다. 새 대화로 CEO에게 첫 업무를 지시하세요.</li>
-          ) : null}
-          {(conversations.data ?? []).map((c) => (
-            <li key={c.id}>
-              <Link
-                to={`/command/${c.id}`}
-                className={cn(
-                  "flex flex-col gap-0.5 rounded-md px-2 py-1.5 transition-colors",
-                  c.id === conversationId ? "bg-surface-3" : "hover:bg-surface-2",
+  const projectName = new Map((projects.data ?? []).map((p) => [p.id, p.name]));
+  const list = (
+    <section className="flex min-h-0 flex-1 flex-col border-t border-border" aria-label="대화 목록">
+      <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
+        <h2 className="text-xs font-medium text-faint">대화</h2>
+        <IconButton label="새 대화" size="icon-sm" onClick={() => setNewOpen(true)}>
+          <MessageSquarePlus />
+        </IconButton>
+      </div>
+      <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3">
+        {conversations.isLoading ? <LoadingState /> : null}
+        {conversations.data?.length === 0 ? (
+          <li className="px-2 py-2 text-xs text-faint">아직 대화가 없습니다. 새 대화로 첫 업무를 지시하세요.</li>
+        ) : null}
+        {(conversations.data ?? []).map((c) => (
+          <li key={c.id}>
+            <Link
+              to={`/command/${c.id}`}
+              aria-current={c.id === conversationId ? "page" : undefined}
+              className={cn(
+                "flex flex-col gap-0.5 rounded-md px-2 py-1.5 transition-colors",
+                c.id === conversationId ? "bg-surface-3" : "hover:bg-surface-2",
+              )}
+            >
+              <span className="flex items-center gap-1.5 text-sm">
+                {c.busy ? <span className="status-pulse size-1.5 shrink-0 rounded-full bg-[var(--status-working)]" aria-label="실행 중" /> : null}
+                <span className="truncate">{c.title}</span>
+              </span>
+              <span className="flex items-center gap-1 truncate text-2xs text-faint">
+                <TargetIcon kind={c.target_kind} />
+                <span className="truncate">{targetName(c, org.data)}</span>
+                <span aria-hidden>·</span>
+                {c.project_id ? (
+                  <span className="flex min-w-0 items-center gap-0.5">
+                    <FolderGit2 className="size-3 shrink-0" aria-hidden />
+                    <span className="truncate">{projectName.get(c.project_id) ?? "프로젝트"}</span>
+                  </span>
+                ) : (
+                  <span className="text-warning">폴더 없음</span>
                 )}
-              >
-                <span className="flex items-center gap-1.5 text-sm">
-                  {c.busy ? <span className="status-pulse size-1.5 shrink-0 rounded-full bg-[var(--status-working)]" aria-label="실행 중" /> : null}
-                  <span className="truncate">{c.title}</span>
-                </span>
-                <span className="flex items-center gap-1 truncate text-2xs text-faint">
-                  <TargetIcon kind={c.target_kind} />
-                  {targetName(c, org.data)} · {timeAgo(c.updated_at)}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </aside>
+                <span aria-hidden>·</span>
+                <span className="shrink-0">{timeAgo(c.updated_at)}</span>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 
+  return (
+    <div className={cn("grid h-full min-h-0", panelOpen ? "grid-cols-[1fr_320px]" : "grid-cols-[1fr]", "max-xl:grid-cols-[1fr]")}>
+      {/* 대화 목록은 주 사이드바 안에 그린다(#79). 사이드바가 접혔거나 좁은 화면이면 대화 위쪽 '대화' 메뉴로. */}
+      {slot ? createPortal(list, slot) : null}
       {conversationId ? (
         <ChatPane
+          switcher={
+            // 사이드바가 접혔거나 좁은 화면이면 대화 목록 대신 메뉴로 대화를 바꾼다.
+            <Menu>
+              <MenuTrigger asChild>
+                <Button size="sm" variant="ghost" className={cn(!rail && "md:hidden")} aria-label="대화 목록">
+                  <MessagesSquare /> 대화
+                </Button>
+              </MenuTrigger>
+              <MenuContent align="start" className="max-h-96 w-72 overflow-y-auto">
+                <MenuItem onSelect={() => setNewOpen(true)}>
+                  <MessageSquarePlus /> 새 대화
+                </MenuItem>
+                {(conversations.data ?? []).map((c) => (
+                  <MenuItem key={c.id} onSelect={() => navigate(`/command/${c.id}`)}>
+                    <span className={cn("truncate", c.id === conversationId && "font-medium text-primary-text")}>{c.title}</span>
+                  </MenuItem>
+                ))}
+              </MenuContent>
+            </Menu>
+          }
           key={conversationId}
           conversationId={conversationId}
           agents={agents}
@@ -168,7 +226,12 @@ export function CommandCenter() {
       {panelOpen ? <ExecutionPanel orgId={orgId} agents={agents} conversationId={conversationId ?? null} /> : null}
 
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <NewConversation org={org.data} onCreate={(kind, id) => create.mutate({ target_kind: kind, target_id: id })} pending={create.isPending} />
+        <NewConversation
+          org={org.data}
+          projects={(projects.data ?? []).map((p) => ({ id: p.id, name: p.name, linked: p.organization_id === orgId }))}
+          onCreate={(kind, id, projectId) => create.mutate({ target_kind: kind, target_id: id, project_id: projectId })}
+          pending={create.isPending}
+        />
       </Dialog>
     </div>
   );
@@ -187,18 +250,23 @@ function targetName(c: Conversation, org: ReturnType<typeof useOrganization>["da
 
 function NewConversation({
   org,
+  projects,
   onCreate,
   pending,
 }: {
   org: ReturnType<typeof useOrganization>["data"];
-  onCreate: (kind: string, id: string | null) => void;
+  projects: { id: string; name: string; linked: boolean }[];
+  onCreate: (kind: string, id: string | null, projectId: string | null) => void;
   pending: boolean;
 }) {
   const [value, setValue] = useState("org:");
   const [kind, id] = value.split(":") as [string, string];
+  // 이 조직에 연결된 프로젝트가 하나면 그것을 기본으로(#79).
+  const linked = projects.filter((p) => p.linked);
+  const [projectId, setProjectId] = useState(linked.length === 1 ? linked[0]!.id : "");
   return (
-    <DialogContent title="새 대화" description="누구와 이야기할지 고르세요. CEO에게 말하면 조직 전체를 대표해 분배 계획을 세웁니다.">
-      <Field label="대화 대상">
+    <DialogContent title="새 대화" description="누구에게(대상) 어디서(작업 폴더) 일을 맡길지 고르세요.">
+      <Field label="누구에게 — 대화 대상">
         {(fid) => (
           <Select id={fid} value={value} onChange={(e) => setValue(e.target.value)}>
             <option value="org:">조직 전체(CEO)</option>
@@ -220,8 +288,33 @@ function NewConversation({
           </Select>
         )}
       </Field>
+      <Field label="어디서 — 작업 폴더(프로젝트)" hint="프로젝트가 없으면 에이전트는 빈 전용 폴더에서 일해 코드를 볼 수 없습니다.">
+        {(fid) => (
+          <Select id={fid} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+            <option value="">프로젝트 없음(빈 전용 폴더)</option>
+            {linked.length ? (
+              <optgroup label="이 조직의 프로젝트">
+                {linked.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+            <optgroup label="다른 프로젝트">
+              {projects
+                .filter((p) => !p.linked)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+            </optgroup>
+          </Select>
+        )}
+      </Field>
       <DialogFooter>
-        <Button variant="primary" disabled={pending} onClick={() => onCreate(kind, id || null)}>
+        <Button variant="primary" disabled={pending} onClick={() => onCreate(kind, id || null, projectId || null)}>
           대화 시작
         </Button>
       </DialogFooter>
@@ -236,7 +329,9 @@ function ChatPane({
   agents,
   panelOpen,
   togglePanel,
+  switcher,
 }: {
+  switcher?: ReactNode;
   conversationId: string;
   agents: Agent[];
   panelOpen: boolean;
@@ -252,6 +347,45 @@ function ChatPane({
   const scrollRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const agentById = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents]);
+  // 화면에 보이는 메시지(#46). 동시 응답 도크와 '새 응답' 알림이 화면 밖 메시지만 골라 보여 준다.
+  const [visible, setVisible] = useState<ReadonlySet<string>>(new Set());
+  const visibleRef = useRef<Set<string>>(new Set());
+  const [unseen, setUnseen] = useState<Unseen[]>([]);
+  const messageCount = conv.data?.messages.length ?? 0;
+
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root || typeof IntersectionObserver === "undefined") return;
+    const seen = new Set<string>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = (entry.target as HTMLElement).dataset.messageId;
+          if (!id) continue;
+          if (entry.isIntersecting) seen.add(id);
+          else seen.delete(id);
+        }
+        visibleRef.current = new Set(seen);
+        setVisible(new Set(seen));
+        // 스크롤해서 본 응답은 '새 응답' 알림에서 뺀다.
+        setUnseen((list) => (list.some((u) => seen.has(u.messageId)) ? list.filter((u) => !seen.has(u.messageId)) : list));
+      },
+      { root, threshold: 0.15 },
+    );
+    root.querySelectorAll<HTMLElement>("[data-message-id]").forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [conversationId, messageCount]);
+
+  useEffect(() => setUnseen([]), [conversationId]);
+
+  const jumpTo = (messageId: string) => {
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
+    if (!el) return;
+    stick.current = false;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+    setUnseen((list) => list.filter((u) => u.messageId !== messageId));
+  };
 
   useEffect(
     () =>
@@ -270,6 +404,18 @@ function ChatPane({
           });
         } else if (event.type === "message.created" || event.type === "message.status") {
           void queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
+        } else if (event.type === "message.completed") {
+          // 화면 밖에서 끝난 응답은 '새 응답' 알림으로 알려 준다(#46).
+          const done = event.message as { id: string; role: string; agent_id: string | null; status: string };
+          if (done.role !== "assistant" || visibleRef.current.has(done.id)) return;
+          const root = scrollRef.current;
+          const el = root?.querySelector<HTMLElement>(`[data-message-id="${done.id}"]`);
+          const above = Boolean(root && el && el.getBoundingClientRect().top < root.getBoundingClientRect().top);
+          setUnseen((list) =>
+            list.some((u) => u.messageId === done.id)
+              ? list
+              : [...list, { messageId: done.id, agentId: done.agent_id, failed: done.status !== "done", above }].slice(-4),
+          );
         }
       }),
     [conversationId, queryClient],
@@ -283,10 +429,11 @@ function ChatPane({
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
   const send = async (p: SendPayload) => {
     try {
-      await api(`/conversations/${conversationId}/messages`, {
+      const res = await api<{ queued_agent_ids: string[] }>(`/conversations/${conversationId}/messages`, {
         method: "POST",
         body: { content: p.content, mention_agent_ids: p.mentionIds, mention_all: p.mentionAll, attachment_ids: p.attachmentIds },
       });
+      if (res.queued_agent_ids?.length) toast("응답 중이라 대기열에 넣었습니다. 지금 응답이 끝나면 이어서 전달합니다.");
       stick.current = true;
       refresh();
     } catch (e) {
@@ -312,6 +459,10 @@ function ChatPane({
     void api<{ stopped: number }>(`/conversations/${conversationId}/stop`, { method: "POST" }).then((r) =>
       toast(r.stopped ? `실행 ${r.stopped}개를 중지했습니다.` : "실행 중인 작업이 없습니다."),
     );
+  const cancelQueued = (messageId: string) =>
+    void api(`/conversations/${conversationId}/messages/${messageId}/cancel-queued`, { method: "POST" })
+      .then(refresh)
+      .catch((e: Error) => toast.error(e.message));
   const regenerate = (messageId: string) =>
     void api(`/conversations/${conversationId}/messages/${messageId}/regenerate`, { method: "POST" })
       .then(refresh)
@@ -321,6 +472,7 @@ function ChatPane({
   if (conv.error || !conv.data) return <ErrorState className="m-6" error={conv.error} retry={() => void conv.refetch()} />;
   const c = conv.data;
   const busy = c.messages.some((m) => m.status === "pending" || m.status === "streaming");
+  const live = dockItems(c.messages, liveText, liveActivity);
   const target =
     c.target_kind === "agent"
       ? agentById.get(c.target_id ?? "")?.name
@@ -330,7 +482,7 @@ function ChatPane({
 
   return (
     <section className="flex min-h-0 min-w-0 flex-col" aria-label="채팅">
-      <ChatHeader conversation={c} agents={agents} panelOpen={panelOpen} togglePanel={togglePanel} />
+      <ChatHeader conversation={c} agents={agents} panelOpen={panelOpen} togglePanel={togglePanel} switcher={switcher} />
       <div
         ref={scrollRef}
         onScroll={(e) => {
@@ -353,7 +505,11 @@ function ChatPane({
           ) : null}
           {c.messages.map((m) => (
             // 방금 생긴 메시지만 떠오르며 나타난다(대화를 열 때 불러온 기록은 그대로).
-            <div key={m.id} className={cn(Date.now() - Date.parse(m.created_at) < 8_000 && "message-in")}>
+            <div
+              key={m.id}
+              data-message-id={m.id}
+              className={cn("scroll-mt-4", Date.now() - Date.parse(m.created_at) < 8_000 && "message-in")}
+            >
             <MessageView
               message={m}
               agent={m.agent_id ? agentById.get(m.agent_id) : undefined}
@@ -361,6 +517,8 @@ function ChatPane({
               liveText={liveText[m.id]}
               liveActivity={liveActivity[m.id]}
               onRegenerate={m.role === "assistant" && !busy ? () => regenerate(m.id) : undefined}
+              queuedFor={m.data.queued?.map((q) => agentById.get(q.agent_id)?.name ?? "에이전트")}
+              onCancelQueued={m.data.queue_state === "waiting" ? () => cancelQueued(m.id) : undefined}
               onAction={() => !panelOpen && togglePanel()}
             />
             </div>
@@ -368,15 +526,30 @@ function ChatPane({
         </div>
       </div>
       <PendingApprovalBanner conversationId={c.id} agents={agents} />
+      <NoProjectNotice conversationId={c.id} organizationId={c.organization_id} projectId={c.project_id} onLinked={refresh} />
       <div className="mx-auto w-full max-w-3xl">
+        <LiveDock
+          items={live}
+          visible={visible}
+          show={showDock(live, visible)}
+          unseen={unseen}
+          agentById={agentById}
+          onJump={jumpTo}
+          onDismiss={(id) => setUnseen((list) => list.filter((u) => u.messageId !== id))}
+        />
         <Composer
           agents={agents}
           commands={commands.data ?? []}
           busy={busy}
+          history={sentHistory(c.messages)}
           onSend={send}
           onCommand={runCommand}
           onStop={stop}
-          placeholder={`${target ?? "대상"}에게 메시지 보내기…`}
+          placeholder={
+            busy
+              ? "응답 중에도 보낼 수 있어요. 지금 응답이 끝나면 이어서 전달합니다…"
+              : `${target ?? "대상"}에게 메시지 보내기…`
+          }
         />
       </div>
     </section>
@@ -388,7 +561,9 @@ function ChatHeader({
   agents,
   panelOpen,
   togglePanel,
+  switcher,
 }: {
+  switcher?: ReactNode;
   conversation: ConversationDetail;
   agents: Agent[];
   panelOpen: boolean;
@@ -422,10 +597,12 @@ function ChatHeader({
   return (
     <header className="flex flex-col gap-2 border-b border-border px-4 py-2.5">
       <div className="flex items-center gap-2">
+        {switcher}
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{conversation.title}</h2>
+        <span className="text-2xs text-faint max-lg:hidden">누구에게</span>
         <Select
           aria-label="대화 대상"
-          className="h-7 w-48 text-xs"
+          className="h-7 w-44 text-xs"
           value={targetValue}
           onChange={(e) => {
             const [kind, id] = e.target.value.split(":");
@@ -444,13 +621,14 @@ function ChatHeader({
             </option>
           ))}
         </Select>
+        <span className="text-2xs text-faint max-lg:hidden">어디서</span>
         <Select
           aria-label="연결된 프로젝트"
-          className="h-7 w-44 text-xs"
+          className={cn("h-7 w-44 text-xs", !conversation.project_id && "border-warning-border text-warning")}
           value={conversation.project_id ?? ""}
           onChange={(e) => patch.mutate({ project_id: e.target.value || null, context: ctx.filter((x) => x.kind !== "path") })}
         >
-          <option value="">프로젝트 없음(전용 작업 폴더)</option>
+          <option value="">폴더 없음(빈 전용 폴더)</option>
           {(projects.data ?? []).map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -751,6 +929,49 @@ function PendingApprovalBanner({ conversationId, agents }: { conversationId: str
           <ApprovalActions id={a.id} agentId={a.agent_id} alwaysRule={a.always_rule} alwaysReason={a.always_reason} source={a.source} decide={decide} />
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * 프로젝트 없이 시작한 대화는 에이전트가 빈 전용 폴더에서 일한다(코드를 볼 수 없음).
+ * 이 조직에 연결된 프로젝트가 있으면 알려 주고 바로 연결하게 한다(#71).
+ */
+function NoProjectNotice({
+  conversationId,
+  organizationId,
+  projectId,
+  onLinked,
+}: {
+  conversationId: string;
+  organizationId: string;
+  projectId: string | null;
+  onLinked: () => void;
+}) {
+  const projects = useProjects();
+  const linked = (projects.data ?? []).filter((p) => p.organization_id === organizationId);
+  const link = useMutation({
+    mutationFn: (id: string) => api(`/conversations/${conversationId}`, { method: "PATCH", body: { project_id: id } }),
+    onSuccess: () => {
+      onLinked();
+      toast.success("프로젝트를 연결했습니다. 다음 메시지부터 그 폴더에서 일합니다.");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  if (projectId || linked.length === 0) return null;
+  return (
+    <div className="mx-auto flex w-full max-w-3xl px-4 pb-2" role="status">
+      <div className="flex w-full flex-wrap items-center gap-2 rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-sm">
+        <FolderX className="size-4 shrink-0 text-warning" aria-hidden />
+        <span className="min-w-0 flex-1">
+          이 대화는 프로젝트 없이 <strong>빈 작업 폴더</strong>에서 실행됩니다. 에이전트가 코드를 볼 수 없습니다.
+        </span>
+        {linked.map((p) => (
+          <Button key={p.id} size="sm" variant="warning" disabled={link.isPending} onClick={() => link.mutate(p.id)}>
+            {p.name} 연결
+          </Button>
+        ))}
+      </div>
     </div>
   );
 }

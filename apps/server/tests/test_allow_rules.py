@@ -1356,3 +1356,81 @@ def test_n1_matching_rejects(root: list[Path], command: str) -> None:
     verdict = policy.decide(stale, "Bash", {"command": command}, root)
     assert verdict.action == "ask" and verdict.explicit is False
     assert policy.decide(perms, "Bash", {"command": "git diff --stat"}, root).explicit is True
+
+
+# ── develop 병합 뒤 상호작용: 대화 기본 프로젝트(#63)·작업 중 대기열(#45) ───────
+
+
+def test_default_project_conversation_keeps_outside_judgement(
+    chat: TestClient, fake: FakeRuntime, tmp_path: Path, settings: Settings
+) -> None:
+    org = chat.post("/api/v1/organizations/from-template", json={"template_key": "software"}).json()
+    code = tmp_path / "code"
+    (code / "one").mkdir(parents=True)
+    (code / "one" / "package.json").write_text("{}")
+    (code / "other").mkdir()
+    chat.post("/api/v1/project-roots", json={"path": str(code)})
+    project = chat.post(
+        "/api/v1/projects", json={"path": str(code / "one"), "organization_id": org["id"]}
+    ).json()
+    conv = chat.post("/api/v1/conversations", json={"organization_id": org["id"]}).json()
+    assert conv["project_id"] == project["id"]  # 연결된 프로젝트가 하나면 그 폴더가 작업 폴더다
+    ceo = lead_of(org)
+    res = patch_perms(
+        chat,
+        org,
+        ceo,
+        permission_mode="auto",
+        allow_shell=True,
+        allow_rules=["Read(**)", "Edit(**)", "Bash(cat:*)"],
+    )
+    assert res.status_code == 200
+    workspace = settings.home / "workspaces" / org["id"] / ceo["id"]
+    fake.script = [
+        ("tool", "Read", {"file_path": "package.json"}),  # 프로젝트 안: 규칙 일치
+        ("tool", "Read", {"file_path": str(code / "other" / "x")}),  # 옆 폴더: 거부
+        ("tool", "Write", {"file_path": str(workspace / "x.txt")}),  # 전용 폴더도 이 대화에서는 밖이다
+        ("ask", "Glob", {"pattern": str(code / "*")}),
+        ("tool", "Bash", {"command": "cat ../other/x"}),  # 셸은 승인
+    ]
+    seen: set[str] = set()
+    reply = send(chat, conv)
+    kind, approval = next_step(chat, org, conv, reply, seen)
+    assert kind == "approval" and approval["detail"]["tool"] == "Bash"
+    assert "작업 폴더 밖" in approval["detail"]["reason"] and approval["detail"]["always_rule"] is None
+    decide(chat, approval, allow=False)
+    msg = wait_message(chat, conv["id"], reply)
+    assert [a["status"] for a in msg["activity"]] == ["done", "failed", "failed", "failed", "failed"]
+    assert fake.requests[-1].cwd == Path(project["path"])
+
+
+def test_queued_message_run_uses_rule_added_while_waiting(chat: TestClient, fake: FakeRuntime) -> None:
+    org, conv = setup_org(chat)
+    ceo = lead_of(org)
+    patch_perms(chat, org, ceo, allow_shell=True)
+    fake.queues[ceo["id"]] = [
+        [("tool", "Bash", {"command": "npm test"}), ("text", "첫 실행 끝")],
+        [("tool", "Bash", {"command": "npm test -- -q"}), ("text", "대기 메시지 실행 끝")],
+    ]
+    seen: set[str] = set()
+    reply = send(chat, conv, "테스트 돌려")
+    kind, approval = next_step(chat, org, conv, reply, seen)
+    assert kind == "approval"
+    # 승인을 기다리는 동안 보낸 메시지는 대기열에 들어간다.
+    queued = chat.post(f"/api/v1/conversations/{conv['id']}/messages", json={"content": "한 번 더"}).json()
+    assert queued["assistant_message_ids"] == [] and queued["queued_agent_ids"] == [ceo["id"]]
+    res = decide(chat, approval, allow=True, always=True).json()
+    assert res["always"] == {"rule": "Bash(npm test:*)", "added": True, "reason": None}
+    wait_message(chat, conv["id"], reply)
+    deadline = time.time() + 5
+    replies: list[dict[str, Any]] = []
+    while time.time() < deadline:
+        detail = chat.get(f"/api/v1/conversations/{conv['id']}").json()
+        replies = [m for m in detail["messages"] if m["role"] == "assistant"]
+        if len(replies) == 2 and replies[1]["status"] not in ("pending", "streaming"):
+            break
+        time.sleep(0.05)
+    # 이어서 실행된 대기 메시지는 방금 추가된 규칙으로 묻지 않고 끝난다.
+    assert len(replies) == 2 and replies[1]["status"] == "done"
+    assert replies[1]["activity"][0]["status"] == "done"
+    assert chat.get("/api/v1/approvals", params={"organization_id": org["id"]}).json() == []

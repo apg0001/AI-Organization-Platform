@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, ChevronRight, Copy, FileText, Loader2, RotateCcw, Square, TerminalSquare } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, Clock, Copy, FileText, Loader2, RotateCcw, Square, TerminalSquare } from "lucide-react";
 import { type ComponentProps, memo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
@@ -121,9 +121,14 @@ export function MessageView({
   liveActivity,
   onRegenerate,
   onAction,
+  queuedFor,
+  onCancelQueued,
 }: {
   message: ChatMessage;
   agent?: Agent;
+  /** 대기 중인 메시지를 받을 에이전트 이름들(#45). */
+  queuedFor?: string[];
+  onCancelQueued?: () => void;
   delegatedBy?: Agent;
   liveText?: string;
   liveActivity?: ActivityEntry[];
@@ -138,6 +143,19 @@ export function MessageView({
           {message.data.mention_all ? <span className="mr-1 text-primary-text">@All</span> : null}
           {message.content}
         </div>
+        {message.data.queue_state === "waiting" ? (
+          <div className="flex items-center gap-2 text-xs text-muted" role="status">
+            <Clock className="size-3.5" aria-hidden />
+            <span>대기 중 · {queuedFor?.length ? `${queuedFor.join(", ")}의 ` : ""}지금 응답이 끝나면 이어서 전달합니다</span>
+            {onCancelQueued ? (
+              <button type="button" className="rounded-sm px-1 text-primary-text hover:underline" onClick={onCancelQueued}>
+                취소
+              </button>
+            ) : null}
+          </div>
+        ) : message.data.queue_state === "cancelled" ? (
+          <p className="text-xs text-faint">전달하지 않음 · {message.data.queue_note ?? "취소됨"}</p>
+        ) : null}
         {atts.length ? (
           <div className="flex flex-wrap justify-end gap-1.5">
             {atts.map((a) =>

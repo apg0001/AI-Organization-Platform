@@ -76,6 +76,8 @@ export default function OfficePage() {
       });
     }
     return () => {
+      // destroy(true)는 캔버스를 다음 프레임에 지운다. 곧바로 다시 마운트되면 캔버스가 잠시 둘이 되므로 바로 떼어 낸다.
+      gameRef.current?.canvas?.remove();
       gameRef.current?.destroy(true);
       gameRef.current = null;
       sceneRef.current = null;

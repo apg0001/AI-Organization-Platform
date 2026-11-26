@@ -28,8 +28,8 @@
 
 | 항목 | 상태 |
 |---|---|
-| 서버: auto 모드, 허용 리스트(`allow_rules`), '항상 허용', 설계 AI 제안의 권한 확대 판정 | Implemented — 자동 테스트 작성됨(`apps/server/tests/test_allow_rules.py`, 가짜 런타임 기준). **실제 Claude Code 미검증** |
-| 웹: 권한 표·프리셋·권한 팝오버·조직도 배지·허용 규칙 편집·권한 확대 확인 창 | Implemented — 검증 중(QA 결과 미반영). 순수 함수 테스트(`apps/web/src/lib/permissions.test.ts`)와 E2E 3건(`apps/web/e2e/flows.spec.ts`: 권한 표·배지, 프리셋, 항상 허용)이 작성됨. 통과가 확인되면 Tested로 올린다 |
+| 서버: auto 모드, 허용 리스트(`allow_rules`), '항상 허용', 설계 AI 제안의 권한 확대 판정 | Implemented — 자동 테스트 작성됨(`apps/server/tests/test_allow_rules.py`, 가짜 런타임 기준). develop 병합 후 재검증 중. **실제 Claude Code 미검증** |
+| 웹: 권한 표·프리셋·권한 팝오버·조직도 배지·허용 규칙 편집·권한 확대 확인 창 | Implemented — develop 병합 후 재검증 중(QA 결과 미반영). 순수 함수 테스트(`apps/web/src/lib/permissions.test.ts`)와 E2E 3건(`apps/web/e2e/flows.spec.ts`: 권한 표·배지, 프리셋, 항상 허용)이 작성됨. 통과가 확인되면 Tested로 올린다 |
 
 실제 Claude Code로 확인하지 않은 것: PreToolUse 훅이 auto 분류기보다 먼저 불리는지, 분류기가 막을 때 `can_use_tool`로 되묻는지,
 auto 모드를 지원하는 CLI 버전. 확인 전에는 Tested로 올리지 않는다([SECURITY.md](SECURITY.md) §3.5).
