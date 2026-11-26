@@ -236,9 +236,11 @@ async def design_message(
 STRUCTURED_OUTPUT_TOOL = "StructuredOutput"
 
 
-async def _designer_permission(tool: str, _input: dict[str, Any]) -> PermissionDecision:
+async def _designer_permission(
+    tool: str, _input: dict[str, Any], _source: str = "hook"
+) -> PermissionDecision:
     if tool == STRUCTURED_OUTPUT_TOOL:
-        return PermissionDecision(True)
+        return PermissionDecision(True, explicit=True)
     return PermissionDecision(
         False, "설계 담당자는 도구를 쓰지 않습니다. 결과는 StructuredOutput으로만 내세요."
     )

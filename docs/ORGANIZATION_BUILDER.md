@@ -48,8 +48,9 @@ key는 명세 안의 식별자다. 기존 조직에서 만든 명세는 실제 I
 ## 5. AI 추천과 실제 적용의 구분
 
 `sanitize_proposal`이 AI 제안에서 다음을 막는다.
-- **권한 확대**(셸·삭제·쓰기·네트워크·위임 켜기, 승인 항목 제거, acceptEdits, 파일 범위 확대)는 `permissions`에 넣지 않고
-  `permission_suggestion`으로 옮긴다. 사용자가 에이전트 설정에서 `제안 수락`을 눌러야 적용된다.
+- **권한 확대**(셸·삭제·쓰기·네트워크·위임 켜기, 승인 항목 제거, 권한 모드 상향 — plan < default < acceptEdits < auto, 허용 규칙 추가,
+  파일 범위 확대)는 `permissions`에 넣지 않고 `permission_suggestion`으로 옮긴다. 사용자가 에이전트 설정에서 `제안 수락`을 눌러야 적용된다.
+  저장이 거부되는 허용 규칙이 든 제안은 그 턴의 제안 전체가 반영되지 않는다([SECURITY.md](SECURITY.md) §3.2).
 - **실제 허용 목록**(`allowed_skills`, `allowed_mcp_servers`)은 AI가 바꿀 수 없다. AI는 `recommended_*`만 쓴다.
 
 추천 도구의 상태(이 컴퓨터 기준): `available`(설치·허용됨) · `approval_required`(설치됨, 허용 전) · `install_required`(없음) ·
@@ -71,4 +72,5 @@ key는 명세 안의 식별자다. 기존 조직에서 만든 명세는 실제 I
 ## 8. 에이전트 설정 항목
 
 이름·직책·부서·상위 관리자·역할·책임·전문 분야·시스템 지시사항·활성화, 권한(셸·파일 수정·삭제·네트워크·위임, 승인 필요 작업,
-권한 모드), 허용 Skills·MCP. 파일 접근 범위(`file_scope`)는 데이터 모델에 있으나 편집 UI는 아직 없다(Planned).
+권한 모드 default·plan·acceptEdits·auto, 허용 규칙), 허용 Skills·MCP. 설계 초안에서 권한을 직접 넓힐 때는 확인 창이 없다
+(적용 전 검토 단계에서 확인한다). 운영 중인 에이전트의 권한을 넓힐 때는 확인 창을 거친다(SECURITY.md §3.4). 파일 접근 범위(`file_scope`)는 데이터 모델에 있으나 편집 UI는 아직 없다(Planned).

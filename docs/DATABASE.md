@@ -48,6 +48,14 @@ Project *─1 Organization(선택) · ProjectRoot(독립)
 - `chat_messages.status`: pending · streaming · done · error · interrupted
 - `approvals.status`: pending · approved · denied · expired
 - JSON 정책 값의 스키마는 `schemas.AgentPermissions`, `schemas.OrgPolicy`, `spec.OrgSpec`.
+- `agents.permissions`(JSON): `permission_mode`(default·acceptEdits·plan·auto), `file_scope`, `allow_shell`, `allow_network`, `allow_file_write`,
+  `allow_file_delete`, `require_approval`, `can_delegate`, `allow_rules`(허용 리스트, 문자열 배열 — 최대 50개·규칙당 200자).
+  `allow_rules`가 없는 예전 행은 빈 목록으로 읽는다. 저장 뒤 검증이 강화돼 통과하지 못하는 규칙은 읽을 때 그 규칙만 무시한다
+  (`schemas.stored_permissions`, 경고 로그 — DB 값을 고쳐 쓰지는 않는다).
+- `approvals.detail`(JSON, 도구 승인): `tool`, `target`(짧은 대상), `group`(묶음 또는 null), `reason`, `source`(hook·runtime),
+  `always_rule`(추가될 규칙 또는 null), `always_reason`, `conversation_id`, `message_id`. 도구 원본 입력은 저장하지 않는다.
+- `activity_events.kind`에 `agent.rule_added`('항상 허용'으로 규칙 추가)가 있다.
+- 위 항목은 모두 기존 JSON 열 안의 값이라 테이블·열 변경이 없다(마이그레이션 불필요).
 
 ## 마이그레이션 정책
 

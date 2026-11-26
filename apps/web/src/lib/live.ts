@@ -106,6 +106,8 @@ export function useLiveConnection(): void {
           break;
         case "organization.updated":
           void queryClient.invalidateQueries({ queryKey: ["organization", event.organization_id] });
+          // 에이전트 상세 화면도 같은 에이전트를 따로 들고 있다('항상 허용'으로 늘어난 허용 규칙 등).
+          void queryClient.invalidateQueries({ queryKey: ["agent"] });
           void queryClient.invalidateQueries({ queryKey: ["organizations"] });
           void queryClient.invalidateQueries({ queryKey: ["workspace"] });
           break;

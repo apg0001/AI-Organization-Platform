@@ -19,6 +19,10 @@ def settings(tmp_path: Path) -> Settings:
         claude_home=claude_home,
         claude_bin="definitely-not-claude",
         auth_enabled=False,
+        # 포트를 고정한다: 지정하지 않으면 AI_ORG_PORT·AI_ORG_WEB_PORT 환경 변수를 읽어
+        # 허용 Origin이 달라지고, 그 변수가 잡힌 셸에서 Origin 테스트가 실패한다.
+        port=8000,
+        web_port=3000,
         usage_poll_s=0,
     )
 

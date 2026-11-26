@@ -9,16 +9,24 @@ import { AgentStatus, DeptChip, EmptyState, ErrorState, LoadingState } from "@/c
 import { ChartLegend, OrgChart, orgAsSpec } from "@/components/org/OrgChart";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/overlay";
+import { PermissionMatrix } from "@/features/permissions/PermissionMatrix";
+import { usePermissionChange } from "@/features/permissions/usePermissionChange";
 import { type Design, api } from "@/lib/api";
+import { PRESETS, applyPreset } from "@/lib/permissions";
 import { useCurrentOrg, useOrganization, useRevisions } from "@/lib/queries";
 import { timeAgo } from "@/lib/utils";
 
-/** 조직(운영 모드): 실제 조직의 조직도·구성원·변경 이력. 구성 변경은 '조직 설계'(설계 모드)에서 한다. */
+/**
+ * 조직(운영 모드): 실제 조직의 조직도·구성원·권한 표·변경 이력. 구성 변경은 '조직 설계'(설계 모드)에서 한다.
+ * 권한은 사용자가 직접 하는 편집이라 이 화면에서 바로 저장한다(넓어지는 변경은 확인 창).
+ */
 export function OrganizationPage() {
   const { orgId } = useCurrentOrg();
   const org = useOrganization(orgId);
   const navigate = useNavigate();
   const [historyOpen, setHistoryOpen] = useState(false);
+  // 조직도 노드의 프리셋 메뉴용(권한 표는 자기 확인 창을 따로 가진다).
+  const permissions = usePermissionChange();
   const edit = useMutation({
     mutationFn: () => api<Design>("/designs", { method: "POST", body: { organization_id: orgId } }),
     onSuccess: (d) => navigate(`/builder/${d.id}`),
@@ -67,10 +75,24 @@ export function OrganizationPage() {
         <TabsList className="px-6">
           <TabsTrigger value="chart">조직도</TabsTrigger>
           <TabsTrigger value="members">구성원 {o.agents.length}</TabsTrigger>
+          <TabsTrigger value="permissions">권한</TabsTrigger>
         </TabsList>
         <TabsContent value="chart" className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1">
-            <OrgChart spec={spec} statuses={statuses} onSelect={(id) => id && navigate(`/agents/${id}`)} />
+            <OrgChart
+              spec={spec}
+              statuses={statuses}
+              onSelect={(id) => id && navigate(`/agents/${id}`)}
+              onPreset={(id, presetId, trigger) => {
+                const agent = o.agents.find((a) => a.id === id);
+                const label = PRESETS.find((p) => p.id === presetId)?.label ?? presetId;
+                if (agent)
+                  permissions.request([{ agent, next: applyPreset(agent.permissions, presetId) }], {
+                    label: `${agent.name}에 프리셋 '${label}' 적용`,
+                    returnFocus: trigger,
+                  });
+              }}
+            />
           </div>
           <div className="border-t border-border px-6 py-2">
             <ChartLegend />
@@ -109,7 +131,11 @@ export function OrganizationPage() {
             </tbody>
           </table>
         </TabsContent>
+        <TabsContent value="permissions" className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <PermissionMatrix org={o} />
+        </TabsContent>
       </Tabs>
+      {permissions.dialog}
       <HistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} orgId={o.id} />
     </div>
   );

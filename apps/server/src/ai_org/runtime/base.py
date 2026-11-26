@@ -48,7 +48,7 @@ class RunRequest:
     model: str | None = None
     allowed_tools: tuple[str, ...] = ()
     disallowed_tools: tuple[str, ...] = ()
-    permission_mode: Literal["default", "acceptEdits", "plan"] = "default"
+    permission_mode: Literal["default", "acceptEdits", "plan", "auto"] = "default"
     add_dirs: tuple[Path, ...] = ()
     skills: tuple[str, ...] = ()
     resume_session_id: str | None = None
@@ -77,10 +77,15 @@ class RuntimeEvent:
 class PermissionDecision:
     allow: bool
     message: str = ""
+    # 명시적 허용(사용자 승인·허용 규칙 일치). False인 허용은 '정책이 막지 않음'일 뿐이다.
+    explicit: bool = False
 
 
-# 도구 이름과 입력을 받아 허용 여부를 돌려준다. 사용자 승인을 기다리는 동안 await가 끝나지 않는다.
-PermissionCallback = Callable[[str, dict[str, Any]], Awaitable[PermissionDecision]]
+# 판정을 요청한 곳. hook: 모든 도구 호출 전(PreToolUse). runtime: 런타임이 스스로 되물은 호출(can_use_tool).
+PermissionSource = Literal["hook", "runtime"]
+
+# 도구 이름·입력·출처를 받아 허용 여부를 돌려준다. 사용자 승인을 기다리는 동안 await가 끝나지 않는다.
+PermissionCallback = Callable[[str, dict[str, Any], PermissionSource], Awaitable[PermissionDecision]]
 
 
 class RunHandle(Protocol):

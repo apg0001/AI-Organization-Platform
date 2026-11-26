@@ -232,6 +232,10 @@ def apply_spec(
 # ── AI 제안 정리 ───────────────────────────────────────────────────────────
 
 
+# 권한 모드의 넓이 순서. 오르면 권한 확대다.
+MODE_RANK = {"plan": 0, "default": 1, "acceptEdits": 2, "auto": 3}
+
+
 def _broader(proposed: AgentPermissions, current: AgentPermissions) -> bool:
     """proposed가 current보다 넓은 권한을 주는가."""
     flags = ("allow_shell", "allow_network", "allow_file_write", "allow_file_delete", "can_delegate")
@@ -239,7 +243,9 @@ def _broader(proposed: AgentPermissions, current: AgentPermissions) -> bool:
         return True
     if set(current.require_approval) - set(proposed.require_approval):
         return True
-    if proposed.permission_mode != current.permission_mode and proposed.permission_mode == "acceptEdits":
+    if MODE_RANK[proposed.permission_mode] > MODE_RANK[current.permission_mode]:
+        return True
+    if set(proposed.allow_rules) - set(current.allow_rules):
         return True
     return bool(current.file_scope) and not set(proposed.file_scope) <= set(current.file_scope)
 
@@ -351,6 +357,7 @@ DESIGNER_SYSTEM = """# 역할: AI 조직 설계 담당자
 - 정보가 부족하면 가장 중요한 질문 1~2개만 하세요. 이미 확인된 내용은 다시 묻지 마세요.
 - 세부 사항이 없으면 합리적인 기본안을 제시하되, 셸 실행·파일 삭제·자동 편집 같은 위험 권한은 켜지 마세요
   (기본 permissions를 유지하세요. 필요해 보이면 reply에서 사용자가 직접 켜도록 안내하세요).
+- permission_mode를 auto로 바꾸거나 allow_rules(허용 규칙)를 추가하지 마세요. 사용자가 직접 정합니다.
 - 기존 에이전트·부서의 key는 바꾸지 마세요. 새 항목은 짧은 영문 key를 만드세요.
 - CEO(is_lead=true)는 정확히 한 명입니다.
 - 추천 Skills/MCP는 recommended_skills/recommended_mcp에 이름만 적으세요. <available_skills>에 없는 것은
