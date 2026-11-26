@@ -10,7 +10,7 @@ from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile, WebSocket
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from starlette.websockets import WebSocketDisconnect
 
@@ -72,6 +72,14 @@ class CommandIn(BaseModel):
 
 class DecisionIn(BaseModel):
     allow: bool
+    # 허용하면서 이 요청을 그 에이전트의 허용 규칙으로 추가한다('항상 허용'). 거부와 함께 쓸 수 없다.
+    always: bool = False
+
+    @model_validator(mode="after")
+    def _always_needs_allow(self) -> DecisionIn:
+        if self.always and not self.allow:
+            raise ValueError("'항상 허용'은 허용(allow=true)일 때만 쓸 수 있습니다.")
+        return self
 
 
 def runs_of(request: Request) -> RunManager:
@@ -406,13 +414,14 @@ def list_approvals(db: DB, organization_id: str | None = None, status: str = "pe
 
 
 @router.post("/approvals/{approval_id}/decision")
-def decide(approval_id: str, body: DecisionIn, db: DB, request: Request) -> dict[str, str]:
+def decide(approval_id: str, body: DecisionIn, db: DB, request: Request) -> dict[str, Any]:
     approval = db.get(Approval, approval_id)
     if approval is None:
         raise not_found("approval")
-    if not runs_of(request).decide(approval_id, body.allow):
+    outcome = runs_of(request).decide(approval_id, body.allow, body.always)
+    if outcome is None:
         raise HTTPException(409, "이미 처리되었거나 만료된 요청입니다.")
-    return {"status": "approved" if body.allow else "denied"}
+    return outcome
 
 
 @router.get("/tasks", response_model=list[TaskOut])

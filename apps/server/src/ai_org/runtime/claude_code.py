@@ -6,6 +6,8 @@
   명령(예: echo) 등을 묻지 않고 허용하므로 can_use_tool만으로는 '항상 승인' 정책을 지킬 수 없다(실측).
   훅은 거부만 하거나 통과시킨다(allow를 반환해 Claude Code 확인을 건너뛰지 않는다 = 권한을 넓히지 않음).
   그다음 Claude Code가 확인을 요청하면 can_use_tool이 호출되고, 훅에서 이미 승인한 호출이면 허용한다.
+  auto 모드에서는 '명시적 허용'(사용자 승인·허용 규칙 일치)만 승인으로 치고, 정책이 단순 통과시킨 호출을
+  Claude Code가 되물으면 출처 "runtime"으로 다시 정책에 물어 사용자 승인을 받는다.
   Claude Code의 deny 규칙·permission mode는 그대로 적용된다. bypassPermissions는 쓰지 않는다.
 - 한 턴마다 프로세스를 띄우고 끝나면 닫는다. 다음 턴은 resume으로 이어 간다(라즈베리 파이 메모리 고려).
 """
@@ -80,11 +82,14 @@ class ClaudeCodeRun:
         from claude_agent_sdk import ClaudeAgentOptions, HookMatcher
         from claude_agent_sdk.types import PermissionResultAllow, PermissionResultDeny
 
+        # can_use_tool에서 다시 묻지 않을 호출. default·acceptEdits·plan은 훅을 통과한 모든 호출(기존 동작),
+        # auto에서는 명시적으로 허용된 호출만 넣는다(단순 통과를 사용자 승인으로 취급하지 않는다).
         approved: set[str] = set()
+        auto = self.request.permission_mode == "auto"
 
         async def pre_tool_use(hook_input: Any, tool_use_id: str | None, _ctx: Any) -> Any:
             decision = await self.on_permission(
-                hook_input.get("tool_name", ""), hook_input.get("tool_input") or {}
+                hook_input.get("tool_name", ""), hook_input.get("tool_input") or {}, "hook"
             )
             if not decision.allow:
                 return {
@@ -94,14 +99,14 @@ class ClaudeCodeRun:
                         "permissionDecisionReason": decision.message or "정책에 의해 거부되었습니다.",
                     }
                 }
-            if tool_use_id:
+            if tool_use_id and (decision.explicit or not auto):
                 approved.add(tool_use_id)
             return {"continue_": True}
 
         async def can_use_tool(tool_name: str, tool_input: dict[str, Any], ctx: Any) -> Any:
             if getattr(ctx, "tool_use_id", None) in approved:
                 return PermissionResultAllow(updated_input=tool_input)
-            decision = await self.on_permission(tool_name, tool_input)
+            decision = await self.on_permission(tool_name, tool_input, "runtime")
             if decision.allow:
                 return PermissionResultAllow(updated_input=tool_input)
             return PermissionResultDeny(message=decision.message or "정책에 의해 거부되었습니다.")
