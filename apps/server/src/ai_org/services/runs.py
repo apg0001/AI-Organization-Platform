@@ -37,9 +37,9 @@ from ai_org.models import (
     Task,
 )
 from ai_org.runtime.activity import classify, target_of
-from ai_org.runtime.base import AgentRuntime, OrgTool, PermissionDecision, RunRequest
-from ai_org.schemas import AgentPermissions
-from ai_org.services import policy
+from ai_org.runtime.base import AgentRuntime, OrgTool, PermissionDecision, PermissionSource, RunRequest
+from ai_org.schemas import AgentPermissions, stored_permissions
+from ai_org.services import policy, rules
 from ai_org.services.bus import EventBus
 from ai_org.services.capabilities import resolve_mcp_servers, resolve_plugin_paths
 from ai_org.services.prompting import ContextLines, system_append, user_prompt
@@ -134,6 +134,17 @@ class Route:
     scope: str  # org | team | agent
     team: Department | None = None
     broadcast: bool = False
+
+
+@dataclass(frozen=True)
+class PendingRequest:
+    """승인을 기다리는 도구 호출. 원본 입력은 여기(메모리)에만 있고 DB에는 남기지 않는다."""
+
+    agent_id: str
+    tool: str
+    tool_input: dict[str, Any]
+    always_rule: str | None
+    always_reason: str
 
 
 def route_json(route: Route) -> dict[str, Any]:
@@ -301,6 +312,7 @@ class RunManager:
         self.runtime_for = runtime_for
         self.runs: dict[str, ActiveRun] = {}
         self.pending: dict[str, asyncio.Future[PermissionDecision]] = {}
+        self.pending_requests: dict[str, PendingRequest] = {}
         self.limit = asyncio.Semaphore(settings.max_concurrent_runs)
         # 종료 중에는 대기 메시지를 새로 실행하지 않는다.
         self.closing = False
@@ -497,7 +509,7 @@ class RunManager:
         )
         depts = list(db.scalars(select(Department).where(Department.organization_id == org.id)))
         ctx = validate_context(db, conv, conv.context or [])
-        perms = AgentPermissions.model_validate(agent.permissions or {})
+        perms = stored_permissions(agent.permissions)
         cwd = self._cwd(db, conv, agent)
         thread = db.scalar(
             select(AgentThread).where(
@@ -964,11 +976,16 @@ class RunManager:
                     status="streaming",
                 )
                 self._set_agent_status(run.agent_id, "thinking")
-                perms = self._perms(run.agent_id)
                 roots = [request.cwd, *request.add_dirs]
+                mode = request.permission_mode
 
-                async def on_permission(tool: str, tool_input: dict[str, Any]) -> PermissionDecision:
-                    return await self._permission(run, perms, roots, tool, tool_input, activity)
+                async def on_permission(
+                    tool: str, tool_input: dict[str, Any], source: PermissionSource = "hook"
+                ) -> PermissionDecision:
+                    # 권한은 호출마다 다시 읽는다('항상 허용' 규칙·실행 중 좁힌 권한이 바로 적용되게).
+                    # 권한 모드만은 이 실행이 시작된 값(Claude Code에 넘긴 값)을 쓴다.
+                    perms = self._perms(run.agent_id)
+                    return await self._permission(run, perms, roots, tool, tool_input, activity, source, mode)
 
                 runtime = self.runtime_for(runtime_id)
                 handle = runtime.start(request, on_permission)
@@ -1037,7 +1054,8 @@ class RunManager:
     def _perms(self, agent_id: str) -> AgentPermissions:
         with self.factory() as db:
             agent = db.get(Agent, agent_id)
-            return AgentPermissions.model_validate(agent.permissions if agent else {})
+            # 검증에 걸리는 옛 허용 규칙만 버리고(더 묻는 쪽) 나머지 권한은 저장된 그대로 적용한다.
+            return stored_permissions(agent.permissions if agent else {})
 
     def _record_session(self, run: ActiveRun, row_id: str | None, sid: str | None, cwd: Path) -> None:
         if not sid:
@@ -1136,10 +1154,12 @@ class RunManager:
         tool: str,
         tool_input: dict[str, Any],
         activity: list[dict[str, Any]],
+        source: PermissionSource = "hook",
+        mode: str | None = None,
     ) -> PermissionDecision:
-        verdict = policy.decide(perms, tool, tool_input, roots)
+        verdict = policy.decide(perms, tool, tool_input, roots, source=source, mode=mode)
         if verdict.action == "allow":
-            return PermissionDecision(True)
+            return PermissionDecision(True, explicit=verdict.explicit)
         if verdict.action == "deny":
             self.bus.publish(
                 "run.denied",
@@ -1151,6 +1171,10 @@ class RunManager:
             )
             return PermissionDecision(False, verdict.reason)
         target = target_of(tool, tool_input, limit=300)
+        # '항상 허용'을 누르면 추가될 규칙을 미리 계산해 화면에 보여 준다(만들 수 없으면 사유).
+        always_rule, always_reason = rules.suggest(
+            tool, tool_input, roots, group=verdict.group, outside=verdict.outside
+        )
         with self.factory() as db:
             agent = db.get(Agent, run.agent_id)
             assert agent is not None
@@ -1164,6 +1188,9 @@ class RunManager:
                     "target": target,
                     "group": verdict.group,
                     "reason": verdict.reason,
+                    "source": source,
+                    "always_rule": always_rule,
+                    "always_reason": always_reason or None,
                     "conversation_id": run.conversation_id,
                     "message_id": run.message_id,
                 },
@@ -1173,6 +1200,10 @@ class RunManager:
             approval_id, org_id, agent_name = approval.id, agent.organization_id, agent.name
         future: asyncio.Future[PermissionDecision] = asyncio.get_running_loop().create_future()
         self.pending[approval_id] = future
+        # 도구 원본 입력은 DB에 남기지 않고 대기 중인 동안 메모리에만 둔다.
+        self.pending_requests[approval_id] = PendingRequest(
+            run.agent_id, tool, tool_input, always_rule, always_reason
+        )
         run.approvals.add(approval_id)
         self._set_agent_status(run.agent_id, "waiting", tool)
         self.bus.publish(
@@ -1187,6 +1218,9 @@ class RunManager:
                 "target": target,
                 "group": verdict.group,
                 "reason": verdict.reason,
+                "source": source,
+                "always_rule": always_rule,
+                "always_reason": always_reason or None,
                 "message_id": run.message_id,
             },
         )
@@ -1200,17 +1234,73 @@ class RunManager:
         finally:
             run.approvals.discard(approval_id)
             self.pending.pop(approval_id, None)
+            self.pending_requests.pop(approval_id, None)
         self._set_agent_status(run.agent_id, "working" if decision.allow else "thinking")
         return decision
 
-    def decide(self, approval_id: str, allow: bool) -> bool:
+    def decide(self, approval_id: str, allow: bool, always: bool = False) -> dict[str, Any] | None:
+        """승인 요청에 답한다. 이미 처리됐으면 None.
+
+        always=True(허용일 때만): 이 요청으로 만든 규칙을 그 에이전트의 허용 리스트에 더하고
+        이번 요청도 허용한다.
+        규칙을 만들 수 없는 요청이면 이번만 허용하고 사유를 돌려준다.
+        """
         if approval_id not in self.pending:
-            return False
+            return None
+        outcome: dict[str, Any] = {"status": "approved" if allow else "denied"}
+        if allow and always:
+            pending = self.pending_requests.get(approval_id)
+            rule = pending.always_rule if pending else None
+            reason = (pending.always_reason if pending else "") or "규칙을 만들 수 없는 요청입니다."
+            added = False
+            if pending is not None and rule is not None:
+                added, problem = self._add_rule(pending.agent_id, rule)
+                if problem:
+                    rule, reason = None, problem
+            outcome["always"] = {
+                "rule": rule,
+                "added": added,
+                "reason": None if rule is not None else reason,
+            }
         message = "" if allow else "사용자가 거부했습니다."
         self._resolve(
-            approval_id, PermissionDecision(allow, message), status_label="approved" if allow else "denied"
+            approval_id,
+            PermissionDecision(allow, message, explicit=allow),
+            status_label="approved" if allow else "denied",
         )
-        return True
+        return outcome
+
+    def _add_rule(self, agent_id: str, rule: str) -> tuple[bool, str]:
+        """에이전트 허용 리스트에 규칙을 더한다. (새로 추가했는지, 실패 사유)."""
+        with self.factory() as db:
+            agent = db.get(Agent, agent_id)
+            if agent is None:
+                return False, "에이전트를 찾을 수 없습니다."
+            # 이 세션에서 방금 읽은 최신 저장 값에 더한다(실행 시작 때 읽어 둔 값이 아니다).
+            perms = stored_permissions(agent.permissions)
+            if rule in perms.allow_rules:
+                return False, ""
+            if len(perms.allow_rules) >= rules.MAX_RULES:
+                return False, f"허용 규칙은 에이전트당 {rules.MAX_RULES}개까지 저장할 수 있습니다."
+            try:
+                updated = AgentPermissions.model_validate(
+                    {**perms.model_dump(), "allow_rules": [*perms.allow_rules, rule]}
+                )
+            except ValueError as exc:
+                return False, str(exc)[:200]
+            agent.permissions = updated.model_dump()
+            db.add(
+                ActivityEvent(
+                    organization_id=agent.organization_id,
+                    agent_id=agent.id,
+                    kind="agent.rule_added",
+                    summary=f"{agent.name}: 허용 규칙 추가 {rule}",
+                )
+            )
+            db.commit()
+            org_id = agent.organization_id
+        self.bus.publish("organization.updated", organization_id=org_id)
+        return True, ""
 
     def _resolve(self, approval_id: str, decision: PermissionDecision, status_label: str) -> None:
         future = self.pending.get(approval_id)

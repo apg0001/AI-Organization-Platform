@@ -91,15 +91,21 @@ def test_codex_reads_latest_session(tmp_path: Path) -> None:
     sessions = tmp_path / "sessions" / "2026" / "11"
     sessions.mkdir(parents=True)
     resets = int((datetime.now(UTC) + timedelta(hours=3)).timestamp())
+    # 관측 시각을 현재 기준 상대 시각으로 둔다(고정 날짜면 날이 지나 주간 창이 만료로 버려진다).
+    base = datetime.now(UTC) - timedelta(hours=1)
+
+    def stamp(minutes: int) -> str:
+        return (base + timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
     lines = [
         {
-            "timestamp": "2026-11-25T01:00:00Z",
+            "timestamp": stamp(-60),
             "payload": {
                 "rate_limits": {"primary": {"used_percent": 5, "resets_at": resets, "window_minutes": 300}}
             },
         },
         {
-            "timestamp": "2026-11-25T02:00:00Z",
+            "timestamp": stamp(0),
             "payload": {
                 "rate_limits": {
                     "primary": {"used_percent": 33, "resets_at": resets, "window_minutes": 300},
@@ -108,7 +114,7 @@ def test_codex_reads_latest_session(tmp_path: Path) -> None:
                 }
             },
         },
-        {"timestamp": "2026-11-25T02:01:00Z", "payload": {"type": "message"}},
+        {"timestamp": stamp(1), "payload": {"type": "message"}},
     ]
     (sessions / "rollout.jsonl").write_text("\n".join(json.dumps(x) for x in lines))
     reading = svc.read_codex(tmp_path)

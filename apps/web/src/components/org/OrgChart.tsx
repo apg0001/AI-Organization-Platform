@@ -26,12 +26,15 @@ import {
   useNodesState,
   useReactFlow,
 } from "@xyflow/react";
-import { Crown } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo } from "react";
+import { Crown, EllipsisVertical } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AgentAvatar } from "@/components/agent/AgentAvatar";
 import { AgentStatus, DeptChip } from "@/components/common/states";
-import type { AgentStatus as Status, Organization, OrgSpec, SpecCollaboration } from "@/lib/api";
+import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/overlay";
+import { PermissionBadges } from "@/features/permissions/PermissionParts";
+import type { AgentPermissions, AgentStatus as Status, Organization, OrgSpec, SpecCollaboration } from "@/lib/api";
+import { PRESETS, type PresetId } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 export const COLLAB_META: Record<SpecCollaboration["kind"], { label: string; color: string }> = {
@@ -50,15 +53,20 @@ interface AgentNodeData extends Record<string, unknown> {
   status?: Status;
   editable: boolean;
   suggestion: boolean;
+  perms: AgentPermissions;
+  /** 프리셋 메뉴(운영 모드에서만). 우클릭·컨텍스트 메뉴 키·노드 안의 버튼으로 연다. */
+  menu: { open: boolean; onOpenChange: (open: boolean) => void; onPreset: (preset: PresetId, trigger: HTMLElement | null) => void } | null;
 }
 
 type AgentNode = Node<AgentNodeData, "agent">;
 
 const NODE_W = 216;
-const NODE_H = 72;
+const NODE_H = 94;
 
 const AgentNodeView = memo(function AgentNodeView({ data, selected }: NodeProps<AgentNode>) {
   const handle = "!size-2.5 !border-border-strong !bg-surface-3";
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menu = data.menu;
   return (
     <div
       className={cn(
@@ -73,7 +81,33 @@ const AgentNodeView = memo(function AgentNodeView({ data, selected }: NodeProps<
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex items-center gap-1 truncate text-sm font-medium">
           {data.lead ? <Crown className="size-3.5 shrink-0 text-warning" aria-label="CEO" /> : null}
-          <span className="truncate">{data.name}</span>
+          <span className="min-w-0 flex-1 truncate">{data.name}</span>
+          {menu ? (
+            <Menu open={menu.open} onOpenChange={menu.onOpenChange}>
+              <MenuTrigger asChild>
+                {/* 노드 클릭(상세로 이동)·끌기·방향키 이동과 섞이지 않게 이벤트를 여기서 멈춘다. */}
+                <button
+                  ref={trigger}
+                  type="button"
+                  aria-label={`${data.name} 권한 프리셋`}
+                  title="권한 프리셋(노드에서 우클릭·컨텍스트 메뉴 키로도 열림)"
+                  className="nodrag nopan -my-0.5 -mr-1 shrink-0 cursor-pointer rounded-sm p-0.5 text-faint hover:bg-surface-3 hover:text-fg"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  <EllipsisVertical className="size-3.5" aria-hidden />
+                </button>
+              </MenuTrigger>
+              <MenuContent align="start" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                <MenuLabel>권한 프리셋</MenuLabel>
+                {PRESETS.map((p) => (
+                  <MenuItem key={p.id} title={p.description} onSelect={() => menu.onPreset(p.id, trigger.current)}>
+                    {p.label}
+                  </MenuItem>
+                ))}
+              </MenuContent>
+            </Menu>
+          ) : null}
         </span>
         <span className="truncate text-xs text-muted">{data.title || "직책 없음"}</span>
         <span className="flex items-center justify-between gap-2">
@@ -85,6 +119,7 @@ const AgentNodeView = memo(function AgentNodeView({ data, selected }: NodeProps<
             </span>
           ) : null}
         </span>
+        <PermissionBadges perms={data.perms} />
       </div>
       <Handle type="source" position={Position.Bottom} id="report-out" className={handle} isConnectable={data.editable} />
       <Handle type="source" position={Position.Right} id="collab-out" className={cn(handle, "!rounded-sm")} isConnectable={data.editable} />
@@ -159,6 +194,8 @@ export interface OrgChartProps {
   onSelect?: (key: string | null) => void;
   /** 주면 편집 가능: 연결로 보고·협업 관계를 바꾼다. */
   onChange?: (next: OrgSpec) => void;
+  /** 주면 노드에 권한 프리셋 메뉴가 생긴다(우클릭·컨텍스트 메뉴 키·노드 안 버튼). trigger는 확인 창 뒤 포커스를 돌려줄 버튼. */
+  onPreset?: (key: string, preset: PresetId, trigger: HTMLElement | null) => void;
   layoutVersion?: number;
   className?: string;
 }
@@ -171,8 +208,13 @@ export function OrgChart(props: OrgChartProps) {
   );
 }
 
-function OrgChartInner({ spec, statuses, selected, onSelect, onChange, layoutVersion = 0, className }: OrgChartProps) {
+function OrgChartInner({ spec, statuses, selected, onSelect, onChange, onPreset, layoutVersion = 0, className }: OrgChartProps) {
   const editable = Boolean(onChange);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  // 노드 데이터가 매 렌더마다 바뀌지 않게 최신 콜백은 ref로 읽는다.
+  const presetRef = useRef(onPreset);
+  presetRef.current = onPreset;
+  const hasPreset = Boolean(onPreset);
   const flow = useReactFlow();
   const structureKey = spec.agents.map((a) => `${a.key}>${a.reports_to ?? ""}`).join("|");
   const positions = useMemo(() => layout(spec), [structureKey, layoutVersion]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -197,10 +239,18 @@ function OrgChartInner({ spec, statuses, selected, onSelect, onChange, layoutVer
             status: statuses?.[a.key],
             editable,
             suggestion: Boolean(a.permission_suggestion),
+            perms: a.permissions,
+            menu: hasPreset
+              ? {
+                  open: menuFor === a.key,
+                  onOpenChange: (open: boolean) => setMenuFor((current) => (open ? a.key : current === a.key ? null : current)),
+                  onPreset: (preset: PresetId, trigger: HTMLElement | null) => presetRef.current?.(a.key, preset, trigger),
+                }
+              : null,
           },
         };
       }),
-    [spec.agents, depts, positions, statuses, selected, editable],
+    [spec.agents, depts, positions, statuses, selected, editable, hasPreset, menuFor],
   );
   const [nodes, setNodes, onNodesChange] = useNodesState<AgentNode>(built);
   useEffect(() => {
@@ -297,6 +347,15 @@ function OrgChartInner({ spec, statuses, selected, onSelect, onChange, layoutVer
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
         onNodeClick={(_, node) => onSelect?.(node.id)}
+        onNodeContextMenu={
+          hasPreset
+            ? (event, node) => {
+                // 마우스 우클릭과 키보드(컨텍스트 메뉴 키·Shift+F10) 모두 이 이벤트로 온다.
+                event.preventDefault();
+                setMenuFor(node.id);
+              }
+            : undefined
+        }
         onPaneClick={() => onSelect?.(null)}
         nodesConnectable={editable}
         edgesFocusable={editable}

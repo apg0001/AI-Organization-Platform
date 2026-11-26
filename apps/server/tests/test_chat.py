@@ -34,7 +34,15 @@ class FakeRun:
                 yield RuntimeEvent("message", {"text": step[1]})
             elif step[0] == "tool":
                 _, tool, tool_input = step
-                decision = await self.on_permission(tool, tool_input)
+                decision = await self.on_permission(tool, tool_input, "hook")
+                yield RuntimeEvent("tool.started", {"id": tool, "tool": tool, "input": tool_input})
+                yield RuntimeEvent("tool.completed" if decision.allow else "tool.failed", {"id": tool})
+            elif step[0] == "ask":
+                # 런타임이 스스로 되묻는 호출(실제 런타임의 can_use_tool). 훅을 먼저 거친다.
+                _, tool, tool_input = step
+                decision = await self.on_permission(tool, tool_input, "hook")
+                if decision.allow and not decision.explicit and self.request.permission_mode == "auto":
+                    decision = await self.on_permission(tool, tool_input, "runtime")
                 yield RuntimeEvent("tool.started", {"id": tool, "tool": tool, "input": tool_input})
                 yield RuntimeEvent("tool.completed" if decision.allow else "tool.failed", {"id": tool})
             elif step[0] == "sleep":
@@ -46,7 +54,7 @@ class FakeRun:
                 # 플랫폼 도구(mcp__org__*) 호출: 실제 런타임처럼 권한 확인 후 핸들러를 부른다.
                 _, name, args = step
                 tool_name = f"mcp__org__{name}"
-                decision = await self.on_permission(tool_name, args)
+                decision = await self.on_permission(tool_name, args, "hook")
                 yield RuntimeEvent("tool.started", {"id": tool_name, "tool": tool_name, "input": args})
                 handler = next((t.handler for t in self.request.org_tools if t.name == name), None)
                 if not decision.allow or handler is None:

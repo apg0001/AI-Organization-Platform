@@ -3,12 +3,13 @@
  * '추천'(recommended_*)과 '실제 허용'(allowed_*)을 분리해 보여 준다. AI 권한 제안은 사용자가 수락해야 적용된다.
  */
 
-import { AlertTriangle, Check, ShieldAlert, Trash2 } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { AlertTriangle, Check, Loader2, Plus, ShieldAlert, Trash2, X } from "lucide-react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Field, Input, Select, Switch, Textarea } from "@/components/ui/form";
-import type { AgentPermissions, ApprovalGroup, Capability, Recommendation, SpecAgent, SpecDepartment } from "@/lib/api";
+import { Button, IconButton } from "@/components/ui/button";
+import { Field, Input, Label, Select, Switch, Textarea } from "@/components/ui/form";
+import type { AgentPermissions, ApprovalGroup, Capability, PermissionMode, Recommendation, SpecAgent, SpecDepartment } from "@/lib/api";
+import { AUTO_DESCRIPTION, MAX_RULES, MAX_RULE_LENGTH, MODE_LABELS, ruleInputProblem } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 export const APPROVAL_LABELS: Record<ApprovalGroup, string> = {
@@ -46,8 +47,14 @@ export function AgentEditor({
   onChange,
   onDelete,
   onAcceptSuggestion,
+  permissionError,
+  permissionsBusy = false,
   footer,
 }: {
+  /** 권한을 저장하고 다시 불러오는 중(운영 화면). 참이면 권한 항목을 잠그고 '저장 중'을 글자로 보인다. 설계 화면은 주지 않는다. */
+  permissionsBusy?: boolean;
+  /** 서버가 허용 규칙 저장을 거부한 사유(422). 허용 리스트 아래에 보인다. */
+  permissionError?: string | null;
   agent: SpecAgent;
   agents: SpecAgent[];
   departments: SpecDepartment[];
@@ -192,7 +199,15 @@ export function AgentEditor({
         <p className="text-xs text-faint">
           이 설정은 Claude Code 권한을 좁히기만 합니다. 모든 도구 호출은 실행 전에 이 정책으로 검사됩니다.
         </p>
-        <div className="flex flex-col gap-3">
+        {permissionsBusy ? (
+          <p className="flex items-center gap-1.5 text-xs text-muted" role="status">
+            <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden />
+            권한 저장 중… 끝날 때까지 권한 항목을 바꿀 수 없습니다.
+          </p>
+        ) : null}
+        {/* 저장하고 다시 불러오는 동안 권한 항목 전체(스위치·승인 체크·모드·허용 규칙)를 잠근다. 잠긴 동안의 변경은 저장되지 않기 때문이다. */}
+        <fieldset disabled={permissionsBusy} aria-busy={permissionsBusy || undefined} className={cn("contents", permissionsBusy && "[&_label]:cursor-default")}>
+        <div className={cn("flex flex-col gap-3", permissionsBusy && "opacity-60")}>
           <Switch label="셸 명령" description="Bash로 명령을 실행합니다(테스트·빌드 등)." checked={perms.allow_shell} onCheckedChange={(v) => setPerms({ allow_shell: v })} />
           <Switch label="파일 생성·수정" checked={perms.allow_file_write} onCheckedChange={(v) => setPerms({ allow_file_write: v })} />
           <Switch label="파일 삭제" description="셸 명령 허용이 함께 필요합니다." checked={perms.allow_file_delete} onCheckedChange={(v) => setPerms({ allow_file_delete: v })} />
@@ -221,15 +236,25 @@ export function AgentEditor({
             ))}
           </div>
         </fieldset>
-        <Field label="Claude Code 권한 모드" hint="plan: 계획만 세우고 실행하지 않음. acceptEdits: 파일 편집을 묻지 않음(승인 설정이 있으면 그것이 우선).">
+        <Field
+          label="Claude Code 권한 모드"
+          hint={
+            perms.permission_mode === "auto"
+              ? `auto: ${AUTO_DESCRIPTION}. 위의 '실행 전에 내 승인 받기'는 적용되지 않고, 꺼 둔 도구는 그대로 쓸 수 없습니다.`
+              : "plan: 계획만 세우고 실행하지 않음. acceptEdits: 파일 편집을 묻지 않음(승인 설정이 있으면 그것이 우선). auto: 안전한 작업은 Claude가 판단."
+          }
+        >
           {(id) => (
-            <Select id={id} value={perms.permission_mode} onChange={(e) => setPerms({ permission_mode: e.target.value as AgentPermissions["permission_mode"] })}>
-              <option value="default">default — 필요할 때 확인</option>
-              <option value="plan">plan — 계획 전용</option>
-              <option value="acceptEdits">acceptEdits — 편집 자동 허용</option>
+            <Select id={id} value={perms.permission_mode} onChange={(e) => setPerms({ permission_mode: e.target.value as PermissionMode })}>
+              <option value="default">{MODE_LABELS.default}</option>
+              <option value="plan">{MODE_LABELS.plan}</option>
+              <option value="acceptEdits">{MODE_LABELS.acceptEdits}</option>
+              <option value="auto">auto — {AUTO_DESCRIPTION}</option>
             </Select>
           )}
         </Field>
+        <AllowRules rules={perms.allow_rules ?? []} error={permissionError} onChange={(allow_rules) => setPerms({ allow_rules })} />
+        </fieldset>
       </Group>
 
       <Group title="Skills·MCP·Plugins">
@@ -339,6 +364,108 @@ function CapabilityChecklist({
   );
 }
 
+/** 허용 리스트 편집: 규칙 추가·삭제. 문법·위험 규칙 판정은 서버가 하고, 거부 사유(error)를 그대로 보인다. */
+function AllowRules({ rules, error, onChange }: { rules: string[]; error?: string | null; onChange: (next: string[]) => void }) {
+  const inputId = useId();
+  const helpId = useId();
+  const [draft, setDraft] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+  // 서버가 받아들여 목록이 늘면 입력을 비운다. 거부되면 입력을 남겨 고칠 수 있게 한다.
+  // (설계 화면은 먼저 반영했다가 거부되면 되돌리므로, 방금 낸 규칙이 목록에서 사라지면 입력을 되살린다.)
+  const count = useRef(rules.length);
+  const submitted = useRef<string | null>(null);
+  useEffect(() => {
+    if (rules.length > count.current) setDraft("");
+    else if (rules.length < count.current && submitted.current && !rules.includes(submitted.current)) {
+      const lost = submitted.current;
+      setDraft((current) => current || lost);
+    }
+    count.current = rules.length;
+  }, [rules]);
+  const add = () => {
+    const found = ruleInputProblem(rules, draft);
+    setProblem(found);
+    if (found) return;
+    submitted.current = draft.trim();
+    onChange([...rules, draft.trim()]);
+  };
+  const remove = (rule: string) => {
+    submitted.current = null;
+    onChange(rules.filter((r) => r !== rule));
+  };
+  const shown = problem ?? error ?? null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={inputId}>허용 리스트(묻지 않고 허용할 호출)</Label>
+      {rules.length === 0 ? <p className="text-xs text-faint">규칙이 없습니다. 승인 요청에서 '항상 허용'을 눌러도 여기에 추가됩니다.</p> : null}
+      <ul className="flex flex-col gap-1" aria-label="허용 규칙">
+        {rules.map((rule) => (
+          <li key={rule} className="flex items-center gap-2 rounded-md border border-border bg-surface-2 py-0.5 pr-0.5 pl-2">
+            <code className="min-w-0 flex-1 font-mono text-xs break-all">{rule}</code>
+            <IconButton label={`허용 규칙 삭제: ${rule}`} size="icon-sm" onClick={() => remove(rule)}>
+              <X />
+            </IconButton>
+          </li>
+        ))}
+      </ul>
+      <div className="flex gap-2">
+        <Input
+          id={inputId}
+          value={draft}
+          maxLength={MAX_RULE_LENGTH}
+          placeholder="Bash(npm test:*)"
+          className="font-mono text-xs"
+          spellCheck={false}
+          aria-invalid={shown ? true : undefined}
+          aria-describedby={helpId}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setProblem(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+        />
+        <Button size="md" onClick={add}>
+          <Plus /> 추가
+        </Button>
+      </div>
+      {shown ? (
+        <p className="text-xs text-danger" role="alert">
+          {shown}
+        </p>
+      ) : null}
+      <div id={helpId} className="flex flex-col gap-1 text-xs text-faint">
+        <p>
+          문법 예: <code className="font-mono">Bash(npm test:*)</code>·<code className="font-mono">Bash(git status:*)</code>(이 접두로 시작하는 명령) ·{" "}
+          <code className="font-mono">Bash(ls -la)</code>(명령 전체) ·{" "}
+          <code className="font-mono">Read(docs/**)</code> · <code className="font-mono">Edit(src/**)</code> · <code className="font-mono">Write(notes/*.md)</code> ·{" "}
+          <code className="font-mono">WebSearch</code> · <code className="font-mono">WebFetch</code> · <code className="font-mono">mcp__서버__도구</code>
+        </p>
+        <p>
+          접두 규칙(<code className="font-mono">:*</code>)은 도구와 하위 명령까지 적은 형태만 저장됩니다. <code className="font-mono">Bash(git:*)</code>·
+          <code className="font-mono">Bash(find:*)</code>·<code className="font-mono">Bash(python:*)</code>처럼 넓은 접두는 거부되니, 그런 명령은{" "}
+          <code className="font-mono">Bash(python manage.py test)</code>처럼 명령 전체를 적으세요.
+        </p>
+        <p>경로는 작업 폴더 기준 상대 경로만 쓸 수 있습니다. 에이전트당 {MAX_RULES}개, 규칙당 {MAX_RULE_LENGTH}자까지.</p>
+        <p className="flex items-start gap-1 text-warning">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>
+            <code className="font-mono">Bash(npm run:*)</code>처럼 스크립트를 실행하는 규칙은 그 스크립트 안에서 하는 일까지 모두 허용합니다.
+          </span>
+        </p>
+        <p>
+          셸 전체(<code className="font-mono">Bash</code>, <code className="font-mono">Bash(*)</code>), rm·sudo·git push, 셸 연산자, bash·sh·env로 시작하는 규칙은 저장되지
+          않습니다. 꺼 둔 도구와 작업 폴더 밖 경로는 규칙으로도 열리지 않습니다.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function SuggestionNotice({
   current,
   suggestion,
@@ -359,7 +486,11 @@ function SuggestionNotice({
   flag("can_delegate", "위임");
   const dropped = current.require_approval.filter((g) => !suggestion.require_approval.includes(g));
   if (dropped.length) diffs.push(`승인 생략: ${dropped.map((g) => APPROVAL_LABELS[g]).join(", ")}`);
-  if (suggestion.permission_mode !== current.permission_mode) diffs.push(`모드 ${suggestion.permission_mode}`);
+  if (suggestion.permission_mode !== current.permission_mode)
+    diffs.push(suggestion.permission_mode === "auto" ? `모드 auto — ${AUTO_DESCRIPTION}(묶음별 승인 미적용)` : `모드 ${suggestion.permission_mode}`);
+  const currentRules = current.allow_rules ?? [];
+  const addedRules = (suggestion.allow_rules ?? []).filter((rule) => !currentRules.includes(rule));
+  if (addedRules.length) diffs.push(`묻지 않고 허용할 규칙 추가: ${addedRules.join(", ")}`);
   return (
     <div className="flex flex-col gap-2 rounded-md border border-warning-border bg-warning-surface px-3 py-2.5 text-sm">
       <span className="flex items-center gap-1.5 font-medium text-warning">

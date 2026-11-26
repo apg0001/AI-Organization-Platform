@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, MessageSquare } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
 import { AgentAvatar } from "@/components/agent/AgentAvatar";
@@ -9,7 +9,9 @@ import { AgentStatus, DeptChip, ErrorState, LoadingState, Section } from "@/comp
 import { orgAsSpec } from "@/components/org/OrgChart";
 import { Button, IconButton } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/overlay";
-import { type Agent, type Conversation, type SpecAgent, api } from "@/lib/api";
+import { type Agent, type Conversation, type SpecAgent, api, fieldError } from "@/lib/api";
+import { usePermissionChange } from "@/features/permissions/usePermissionChange";
+import { samePermissions } from "@/lib/permissions";
 import { useCapabilities, useOrganization, useTasks } from "@/lib/queries";
 import { timeAgo } from "@/lib/utils";
 import { TaskStatus } from "@/features/dashboard/DashboardPage";
@@ -20,6 +22,7 @@ import { TaskStatus } from "@/features/dashboard/DashboardPage";
  */
 export function AgentDetailPage() {
   const { agentId } = useParams();
+  const [searchParams] = useSearchParams();
   const agent = useQuery({ queryKey: ["agent", agentId], queryFn: () => api<Agent>(`/agents/${agentId}`) });
   const org = useOrganization(agent.data?.organization_id);
   const caps = useCapabilities();
@@ -40,7 +43,7 @@ export function AgentDetailPage() {
           department_id: next.department,
           reports_to_id: next.reports_to,
           enabled: next.enabled,
-          permissions: next.permissions,
+          // 권한은 여기서 보내지 않는다(아래 permissions.request가 최신 값 기준으로 따로 저장한다).
           allowed_skills: next.allowed_skills,
           allowed_mcp_servers: next.allowed_mcp_servers,
           allowed_plugins: next.allowed_plugins,
@@ -53,6 +56,9 @@ export function AgentDetailPage() {
     },
     onError: (e) => toast.error(e.message),
   });
+  // 권한 변경은 표·팝오버와 같은 길로 저장한다: 넓어지는 변경(auto 전환, 허용 규칙 추가, 금지 → 허용 등)은 확인 창,
+  // 화면이 열려 있는 동안 늘어난 허용 규칙('항상 허용')은 덮어쓰지 않는다.
+  const permissions = usePermissionChange();
   const chat = useMutation({
     mutationFn: () =>
       api<Conversation>("/conversations", {
@@ -93,7 +99,8 @@ export function AgentDetailPage() {
           <MessageSquare /> 직접 대화
         </Button>
       </header>
-      <Tabs defaultValue="overview" className="px-6 pb-10">
+      {/* 승인 배너·권한 표의 '권한 보기/편집' 링크는 ?tab=settings로 설정 탭을 바로 연다. */}
+      <Tabs defaultValue={searchParams.get("tab") === "settings" ? "settings" : "overview"} className="px-6 pb-10">
         <TabsList>
           <TabsTrigger value="overview">개요</TabsTrigger>
           <TabsTrigger value="settings">설정·권한</TabsTrigger>
@@ -150,8 +157,17 @@ export function AgentDetailPage() {
             agents={spec.agents}
             departments={spec.departments}
             capabilities={caps.data ?? []}
-            onChange={(next) => save.mutate(next)}
+            onChange={(next) => {
+              if (!samePermissions(specAgent.permissions, next.permissions)) {
+                permissions.request([{ agent: { ...a, permissions: specAgent.permissions }, next: next.permissions }]);
+              }
+              // 권한 말고 다른 항목이 바뀌었을 때만 나머지를 저장한다.
+              if (JSON.stringify({ ...next, permissions: null }) !== JSON.stringify({ ...specAgent, permissions: null })) save.mutate(next);
+            }}
+            permissionError={fieldError(permissions.error, "allow_rules")}
+            permissionsBusy={permissions.pending}
           />
+          {permissions.dialog}
         </TabsContent>
       </Tabs>
     </div>

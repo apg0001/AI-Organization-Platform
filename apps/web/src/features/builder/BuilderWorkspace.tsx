@@ -17,7 +17,7 @@ import { ChartLegend, OrgChart } from "@/components/org/OrgChart";
 import { Button, IconButton } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/overlay";
-import { ApiError, type Design, type OrgSpec, type SpecAgent, api } from "@/lib/api";
+import { ApiError, type Design, type OrgSpec, type SpecAgent, api, fieldError } from "@/lib/api";
 import { useCapabilities, useCurrentOrg, useDesign } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
@@ -84,7 +84,16 @@ export function BuilderWorkspace() {
       is_lead: false,
       enabled: true,
       permissions: lead
-        ? { ...lead.permissions, allow_shell: false, allow_file_delete: false, can_delegate: false, require_approval: ["shell", "file_write", "file_delete", "mcp"] }
+        ? {
+            ...lead.permissions,
+            // 새 에이전트는 보수적으로 시작한다: CEO가 auto여도 물려받지 않고 허용 리스트도 비운다.
+            permission_mode: lead.permissions.permission_mode === "auto" ? "default" : lead.permissions.permission_mode,
+            allow_shell: false,
+            allow_file_delete: false,
+            can_delegate: false,
+            require_approval: ["shell", "file_write", "file_delete", "mcp"],
+            allow_rules: [],
+          }
         : {
             permission_mode: "default",
             file_scope: [],
@@ -94,6 +103,7 @@ export function BuilderWorkspace() {
             allow_file_delete: false,
             require_approval: ["shell", "file_write", "file_delete", "mcp"],
             can_delegate: false,
+            allow_rules: [],
           },
       permission_suggestion: null,
       recommended_skills: [],
@@ -189,6 +199,7 @@ export function BuilderWorkspace() {
                     onChange={(next) => update({ ...spec, agents: spec.agents.map((a) => (a.key === next.key ? next : a)) })}
                     onDelete={() => removeAgent(agent.key)}
                     onAcceptSuggestion={() => accept.mutate(agent.key)}
+                    permissionError={fieldError(saveSpec.error, "allow_rules")}
                   />
                 </fieldset>
               </div>

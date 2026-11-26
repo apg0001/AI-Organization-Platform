@@ -78,6 +78,45 @@
 | GET | `/organizations/{id}/revisions` | 적용 이력 |
 | POST | `/organizations/{id}/revisions/{rid}/restore` | 그 구성으로 설계 초안 생성(적용 아님) |
 
+### 에이전트 권한(`permissions`)
+
+에이전트 생성·수정(`POST`·`PATCH …/agents`)과 설계 명세(`PUT /designs/{id}/spec`)의 `permissions` 본문이다. 원본: `schemas.AgentPermissions`.
+
+```json
+{
+  "permission_mode": "default",
+  "file_scope": [],
+  "allow_shell": false,
+  "allow_network": true,
+  "allow_file_write": true,
+  "allow_file_delete": false,
+  "require_approval": ["shell", "file_write", "file_delete", "mcp"],
+  "can_delegate": false,
+  "allow_rules": []
+}
+```
+
+- `permission_mode`: `default`·`acceptEdits`·`plan`·`auto`. `bypassPermissions`·`dontAsk` 등 그 밖의 값은 422.
+  `auto`에서는 `require_approval`을 적용하지 않는다(값은 그대로 저장).
+- `allow_rules`: 허용 리스트(문자열 배열, 최대 50개·규칙당 200자). 문법과 저장이 거부되는 규칙은 [SECURITY.md](SECURITY.md) §3.2·§3.3.
+  저장할 때 공백을 정리하고 중복을 없앤 형태로 바뀐다(순서 유지). 응답에는 정리된 값이 온다.
+- `PATCH`로 `permissions`를 보내면 그 객체 전체가 바뀐다(빠진 필드는 기본값).
+- 규칙이 거부되면 422이고 `msg`에 사유가 온다(`Value error, ` 뒤가 사용자에게 보일 문장). 사유 예:
+  "`git` 접두 규칙은 하위 명령까지 지정해야 합니다(예: `Bash(git <하위 명령>:*)`). 접두 규칙 대신 `Bash(명령 전체)`처럼 명령 전체를 적으세요."(`Bash(git:*)`),
+  "`find`는 다른 명령을 실행하거나 파일을 덮어쓸 수 있어 접두 규칙으로 열 수 없습니다. …"(`Bash(find:*)`),
+  "`npm install`는 패키지를 설치·변경하며 설치 스크립트를 실행할 수 있어 접두 규칙으로 못 엽니다. …"(`Bash(npm install:*)`),
+  "`npx tsx`는 임의 코드를 실행하므로 접두 규칙으로 열 수 없습니다. …"(`Bash(npx tsx:*)`),
+  "셸 규칙에는 `(`을(를) 쓸 수 없습니다(명령 연결·치환·리다이렉션·묶음 금지)."
+- 조회 응답은 저장된 값을 읽는다. 저장 뒤 검증이 강화돼 더는 통과하지 못하는 규칙은 응답의 `allow_rules`에서 빠지고(서버 경고 로그) 조회·실행은 실패하지 않는다.
+- 버전 필드가 없다: 오래된 `permissions` 전체를 `PATCH`하면 그 사이 '항상 허용'으로 추가된 규칙이 덮어써진다. 보내기 직전에 최신 값을 읽어 그 위에 고친다.
+
+```json
+{"detail": [{"type": "value_error", "loc": ["body", "permissions", "allow_rules"],
+             "msg": "Value error, `rm` 명령은 허용 규칙에 넣을 수 없습니다.", "input": ["Bash(rm:*)"]}]}
+```
+
+`loc`의 앞부분은 경로마다 다르고(설계 명세는 `spec`·`agents`·번호가 낀다) 마지막 항목이 `allow_rules`다. 위 예의 `input` 등 나머지 필드는 Pydantic 기본 형식이다.
+
 ## 조직 설계
 
 | 메서드 | 경로 | 설명 |
@@ -105,10 +144,38 @@
 | POST | `/conversations/{id}/commands` | `{name, args}` 실행 → command 메시지 |
 | POST | `/attachments` | multipart `file` → 초안 첨부 |
 | GET/DELETE | `/attachments/{id}[/content]` | 내용(inline) / 초안 삭제(보낸 첨부는 409) |
-| GET | `/approvals` | `?organization_id=&status=pending` |
-| POST | `/approvals/{id}/decision` | `{allow}` |
+| GET | `/approvals` | `?organization_id=&status=pending` → `[{id, organization_id, agent_id, kind, summary, detail, status, created_at}]` |
+| POST | `/approvals/{id}/decision` | `{allow, always?}` → `{status, always?}`(아래) |
 | GET | `/tasks` | `?organization_id=` |
 | GET | `/runs` | 현재 실행 중인 메시지 |
+
+### 승인 결정과 '항상 허용'
+
+`approvals`의 `detail`:
+
+| 필드 | 내용 |
+|---|---|
+| `tool`, `target` | 도구 이름, 짧은 대상(명령·경로, 최대 300자). 도구 원본 입력은 들어가지 않는다 |
+| `group` | shell·file_write·file_delete·network·delegate·mcp 또는 `null`(묶음이 없는 도구 — 예: auto에서 Claude Code가 되물은 Read) |
+| `reason` | 승인 사유(작업 폴더 밖 경로, "Claude Code가 확인을 요청했습니다." 등). 없으면 빈 문자열 |
+| `source` | `hook`(모든 도구 호출 전 정책 판정) · `runtime`(Claude Code가 스스로 되물음 — auto 모드) |
+| `always_rule` | '항상 허용'하면 추가될 규칙. 만들 수 없으면 `null`. 예: `ls -la` → `Bash(ls -la)`(기본은 명령 전체 일치), `git status -s` → `Bash(git status:*)`, `npm run build` → `Bash(npm run build:*)`, `npm install left-pad` → `Bash(npm install left-pad)`, `npx vitest run` → `Bash(npx vitest run)`(설치·패키지 실행은 전체 일치), 파일 쓰기 → `Edit(docs/a.md)` |
+| `always_reason` | 규칙을 만들 수 없는 사유. 만들 수 있으면 `null`. 예: "삭제 요청은 항상 허용할 수 없습니다.", "작업 폴더 밖 경로를 참조하는 요청은 항상 허용할 수 없습니다.", "경로를 지정하지 않은(작업 폴더 전체) 요청은 항상 허용할 수 없습니다.", "셸 확장 문법(…)이 있는 명령은 허용 규칙에 넣을 수 없습니다." |
+| `conversation_id`, `message_id` | 요청이 나온 대화·메시지 |
+
+`POST /approvals/{id}/decision`:
+
+| 요청 | 응답 |
+|---|---|
+| `{"allow": false}` | `{"status": "denied"}` |
+| `{"allow": true}` | `{"status": "approved"}` |
+| `{"allow": true, "always": true}` | `{"status": "approved", "always": {"rule", "added", "reason"}}` |
+| `{"allow": false, "always": true}` | 422(`detail[0].msg`에 사유). 요청은 처리되지 않고 대기 상태로 남는다 |
+
+- `always.rule`이 문자열이면 그 에이전트의 `allow_rules`에 있는 규칙이다. `added`가 `true`면 이번에 추가됐고, `false`면 이미 있던 규칙이다. `reason`은 `null`.
+- `always.rule`이 `null`이면 규칙을 만들지 못해 **이번만 허용**된 것이고 `reason`에 사유가 온다(`added`는 `false`).
+- 규칙이 추가되면 WebSocket `organization.updated`가 방송되고 활동 기록에 `agent.rule_added`가 남는다.
+- 없는 승인은 404, 이미 처리됐거나 만료된 승인은 409.
 
 ## 프로젝트
 
@@ -135,12 +202,12 @@
 | `run.denied` | conversation_id, message_id, agent_id, tool, reason | 정책 거부 |
 | `message.completed` | conversation_id, message | 확정된 메시지 |
 | `agent.status` | organization_id, agent_id, status, detail | 상태 변경(detail: 활동 분류 또는 도구) |
-| `approval.requested` | organization_id, conversation_id, approval{id, agent_id, agent_name, tool, target, group, reason, message_id} | 승인 요청(reason: 범위 밖 경로 등 승인 사유) |
+| `approval.requested` | organization_id, conversation_id, approval{id, agent_id, agent_name, tool, target, group, reason, source, always_rule, always_reason, message_id} | 승인 요청(필드 뜻은 '승인 결정과 항상 허용'의 `detail`과 같다. group은 `null`일 수 있다) |
 | `approval.resolved` | organization_id, approval_id, status | 승인 처리 |
 | `task.updated` | organization_id, task_id, status | 작업 상태 |
 | `task.delegated` | organization_id, conversation_id, from_agent_id, to_agent_id, task_id, kind(delegated·review) | 에이전트 간 위임·검토 요청 |
 | `design.updated` | design_id, status, busy | 설계 초안 변경 |
-| `organization.updated` | organization_id | 설계 적용 |
+| `organization.updated` | organization_id | 설계 적용, '항상 허용'으로 에이전트 허용 규칙 추가 |
 | `usage.updated` | — | 사용량 다시 조회됨 |
 | `usage.threshold` | provider, window, threshold, percent, summary | 사용량 임계치를 처음 넘음 |
 | `notify` | notification{id, at, kind, title, body, url} | 알림 센터가 고른 알림(승인 요청·작업 완료/실패·사용량 경고). 웹은 브라우저 알림으로 띄운다 |

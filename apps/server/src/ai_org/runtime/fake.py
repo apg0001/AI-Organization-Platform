@@ -4,6 +4,12 @@
 - 기본: 마크다운(코드 블록 포함) 응답을 조금씩 스트리밍한다.
 - `[승인]`: 작업 폴더에 파일을 쓰는 Write 도구를 요청한다(기본 권한에서 사용자 승인 필요).
 - `[위임:이름]`: 위임 도구(delegate_task)로 그 구성원에게 일을 넘기고 보고를 받아 취합한다.
+- `[셸:명령]`: 그 셸 명령(Bash)을 요청한다. 실제 런타임의 PreToolUse 훅처럼 출처 "hook"으로 정책에 묻는다.
+- `[되묻기:명령]`: 같은 요청을 한 뒤, 실제 Claude Code가 스스로 확인을 요청하는 경우를 흉내 낸다.
+  auto 모드에서 정책이 '단순 통과'시킨 호출이면 출처 "runtime"으로 한 번 더 묻는다(→ 승인 배너).
+  다른 모드에서는 실제 런타임과 같이 다시 묻지 않는다.
+  `[셸:…]`·`[되묻기:…]`는 한 메시지에 여러 개 쓸 수 있고 적힌 순서대로 실행한다. 명령에 `]`는 쓸 수 없다.
+  명령은 실제로 실행하지 않는다.
 - 설계 담당자 실행(output_schema): 현재 명세에 'E2E팀'과 'E2E 분석가'를 더한 명세를 구조화 출력으로 돌려준다.
 절대 운영에 쓰지 않는다. 화면의 런타임 표시가 '가짜 런타임'으로 나온다.
 """
@@ -20,6 +26,7 @@ from ai_org.runtime.base import PermissionCallback, RunRequest, RuntimeEvent
 from ai_org.schemas import RuntimeInfo
 
 DELEGATE = re.compile(r"\[위임:([^\]]+)\]")
+SHELL = re.compile(r"\[(셸|되묻기):([^\]]+)\]")
 SPEC = re.compile(r"<current_spec>\s*(\{.*?\})\s*</current_spec>", re.S)
 
 
@@ -65,18 +72,37 @@ class FakeRun:
         prompt = req.prompt
         if "[승인]" in prompt:
             tool_input = {"file_path": str(req.cwd / "e2e.txt"), "content": "e2e"}
-            decision = await self.on_permission("Write", tool_input)
+            decision = await self.on_permission("Write", tool_input, "hook")
             yield RuntimeEvent("tool.started", {"id": "fake-write", "tool": "Write", "input": tool_input})
             yield RuntimeEvent("tool.completed" if decision.allow else "tool.failed", {"id": "fake-write"})
             async for ev in self._stream(
                 "파일 쓰기가 승인되었습니다." if decision.allow else "파일 쓰기가 거부되었습니다."
             ):
                 yield ev
+        elif shell_marks := SHELL.findall(prompt):
+            lines = []
+            for n, (kind, raw) in enumerate(shell_marks):
+                command = raw.strip()
+                shell_input = {"command": command}
+                tool_id = f"fake-shell-{n}"
+                decision = await self.on_permission("Bash", shell_input, "hook")
+                if (
+                    kind == "되묻기"
+                    and decision.allow
+                    and not decision.explicit
+                    and req.permission_mode == "auto"
+                ):
+                    decision = await self.on_permission("Bash", shell_input, "runtime")
+                yield RuntimeEvent("tool.started", {"id": tool_id, "tool": "Bash", "input": shell_input})
+                yield RuntimeEvent("tool.completed" if decision.allow else "tool.failed", {"id": tool_id})
+                lines.append(f"- `{command}`: {'허용되었습니다' if decision.allow else '거부되었습니다'}")
+            async for ev in self._stream("셸 명령 요청 결과입니다.\n\n" + "\n".join(lines)):
+                yield ev
         elif (m := DELEGATE.search(prompt)) and req.org_tools:
             name = m.group(1).strip()
             tool = next(t for t in req.org_tools if t.name == "delegate_task")
             args = {"assignee": name, "title": "E2E 위임 작업", "brief": "한 문장으로 보고해 주세요."}
-            decision = await self.on_permission("mcp__org__delegate_task", args)
+            decision = await self.on_permission("mcp__org__delegate_task", args, "hook")
             yield RuntimeEvent(
                 "tool.started", {"id": "fake-delegate", "tool": "mcp__org__delegate_task", "input": args}
             )

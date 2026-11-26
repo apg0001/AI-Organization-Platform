@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 AgentStatus = Literal["idle", "thinking", "working", "waiting", "reviewing", "completed", "failed", "offline"]
 CollaborationKind = Literal["handoff", "review", "consult"]
-PermissionMode = Literal["default", "acceptEdits", "plan"]
+# bypassPermissions·dontAsk는 의도적으로 넣지 않는다.
+PermissionMode = Literal["default", "acceptEdits", "plan", "auto"]
 
 
 class ORM(BaseModel):
@@ -22,11 +24,15 @@ class ORM(BaseModel):
 class AgentPermissions(BaseModel):
     """에이전트 권한. Claude Code 권한 위에 덧씌우는 '더 좁히기 전용' 정책이다.
 
-    - permission_mode: Claude Code permission mode. bypassPermissions는 의도적으로 허용하지 않는다.
+    - permission_mode: Claude Code permission mode. bypassPermissions·dontAsk는 의도적으로 허용하지 않는다.
+      auto에서는 require_approval(묶음별 승인)을 적용하지 않고 Claude Code의 판단에 맡긴다.
+      Claude Code가 되물으면 앱 승인으로 사용자에게 묻는다.
     - file_scope: 작업 가능한 디렉터리(프로젝트 루트 기준 상대 경로 또는 절대 경로). 비면 프로젝트 전체.
     - allow_shell / allow_network / allow_file_write / allow_file_delete: 도구 묶음 허용 여부.
     - require_approval: 사용자 승인을 받아야 하는 도구 묶음.
     - can_delegate: 다른 에이전트에게 업무를 위임할 수 있는지.
+    - allow_rules: 허용 리스트(Claude Code 규칙 문법의 일부, services/rules.py). 맞는 호출은 묻지 않는다.
+      꺼 둔 도구와 작업 폴더 밖 경로는 규칙으로도 열 수 없다. 셸 전체·삭제·sudo·git push 규칙은 저장 거부.
     """
 
     permission_mode: PermissionMode = "default"
@@ -41,6 +47,33 @@ class AgentPermissions(BaseModel):
         )
     )
     can_delegate: bool = False
+    allow_rules: list[str] = Field(default_factory=list)
+
+    @field_validator("allow_rules")
+    @classmethod
+    def _check_rules(cls, value: list[str]) -> list[str]:
+        from ai_org.services import rules  # 순환 import 방지(services.policy가 이 모듈을 쓴다)
+
+        return rules.normalize(value)
+
+
+def stored_permissions(raw: Any) -> AgentPermissions:
+    """DB에 저장된 권한을 읽는다(실행·응답용).
+
+    저장 뒤 규칙 검증이 강화돼 더는 통과하지 못하는 allow_rules 항목만 버린다. 버리는 쪽은 항상
+    '더 묻는' 쪽이고, 나머지 권한(꺼 둔 도구·승인 묶음 등)은 저장된 그대로 적용한다.
+    """
+    from ai_org.services import rules  # 순환 import 방지
+
+    data = dict(raw) if isinstance(raw, dict) else {}
+    if data.get("allow_rules"):
+        kept, dropped = rules.keep_valid(data["allow_rules"])
+        if dropped:
+            logging.getLogger(__name__).warning(
+                "저장된 허용 규칙 %d개가 현재 검증을 통과하지 못해 무시합니다: %s", len(dropped), dropped[:5]
+            )
+        data["allow_rules"] = kept
+    return AgentPermissions.model_validate(data)
 
 
 class OrgPolicy(BaseModel):
@@ -121,6 +154,12 @@ class AgentOut(ORM, AgentBase):
     status: AgentStatus
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("permissions", mode="before")
+    @classmethod
+    def _stored_permissions(cls, value: Any) -> Any:
+        # 응답은 저장된 값을 읽는 것이므로, 검증이 강화돼 걸리는 옛 규칙 때문에 조회가 실패하지 않게 한다.
+        return stored_permissions(value) if isinstance(value, dict) else value
 
 
 class CollaborationIn(BaseModel):
