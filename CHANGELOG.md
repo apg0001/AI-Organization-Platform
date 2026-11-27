@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-27
+
+데스크톱 설치 파일은 여전히 서명하지 않았다.
+
 에이전트별 모델(#87): `opus`·`sonnet`·`haiku` 별칭이 실제 Claude Code에서 받아들여지는지, 기본값일 때 어떤 모델이 쓰이는지, 이어지는 세션에서 모델만 바꿔도 되는지는 실제 Claude Code로 확인하지 않았다(가짜 런타임은 모델을 무시한다).
 
 ### 추가
@@ -108,7 +112,8 @@
 - 보안: 셸 명령 안의 작업 폴더 밖 경로를 감지해 사용자 승인을 요구(승인 요청에 사유 표시).
 - 라이선스: Apache License 2.0 적용(LICENSE, NOTICE).
 
-[Unreleased]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.4.0...develop
+[Unreleased]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.5.0...develop
+[0.5.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.1.0...v0.2.0
