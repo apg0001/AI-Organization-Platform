@@ -29,6 +29,7 @@
 | `setting_sources` | `["project"]` | 사용자 전역 allow 규칙이 앱 승인을 건너뛰지 않게 |
 | `disallowed_tools` | 권한에서 끈 도구 묶음(Bash 등) | deny 규칙은 모든 모드에서 우선 |
 | `permission_mode` | default · acceptEdits · plan · auto (bypassPermissions·dontAsk 금지) | auto의 실제 Claude Code 동작은 미검증(§5) |
+| `model` | 에이전트의 `model`(형식 검증을 통과한 값). 없거나 형식에 맞지 않으면 지정하지 않음 → Claude Code 기본 모델 | 실행을 시작할 때 읽으므로 **다음 실행부터 적용**(실행 중인 작업은 그대로). **미검증**: `opus`·`sonnet`·`haiku` 별칭을 실제 Claude Code가 받는지, 지정하지 않을 때 실제로 쓰이는 모델, `resume`으로 이어지는 세션에서 모델만 바꿔도 되는지(가짜 런타임은 모델을 무시) |
 | `add_dirs` | 첨부 파일 폴더 | Read 도구로 첨부를 읽게 |
 | `skills` | 에이전트에게 허용된 Skill 이름 | SDK의 Skills 제한 옵션 |
 | `mcp_servers`, `strict_mcp_config=True` | 에이전트에게 허용된 MCP 서버의 원본 설정만 | 허용하지 않은 서버(사용자·프로젝트 설정)는 붙지 않음 |

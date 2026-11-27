@@ -78,6 +78,18 @@
 | GET | `/organizations/{id}/revisions` | 적용 이력 |
 | POST | `/organizations/{id}/revisions/{rid}/restore` | 그 구성으로 설계 초안 생성(적용 아님) |
 
+### 에이전트 모델(`model`)
+
+에이전트 생성·수정과 설계 명세의 `model`은 그 에이전트가 쓸 Claude 모델 이름이다. 원본: `schemas.clean_model`.
+
+- `null`·빈 문자열: 기본값 — 모델을 지정하지 않고 Claude Code의 기본 모델을 쓴다(빈 문자열은 `null`로 저장).
+- 형식만 검증한다: 앞뒤 공백을 뗀 뒤 1~100자, 영문·숫자와 `.` `_` `:` `-` `[` `]`만, `-`로 시작할 수 없다. 이름 목록으로 제한하지 않으며
+  그 모델이 실제로 있는지도 확인하지 않는다. 웹은 `opus`·`sonnet`·`haiku`만 고르게 하고 다른 저장 값은 그대로 둔다.
+- 모델만 바꾸려면 `PATCH …/agents/{agent_id}`에 `{"model": "sonnet"}`만 보낸다(새 경로 없음). **다음 실행부터 적용**되고 실행 중인 작업은 바뀌지 않는다.
+- 형식이 틀리면 422: `{"detail": [{"type": "value_error", "loc": ["body", "model"], "msg": "Value error, 모델 이름은 `-`로 시작할 수 없습니다.", …}]}`.
+  다른 사유: "모델 이름은 100자를 넘을 수 없습니다.", "모델 이름에는 영문·숫자와 `.` `_` `:` `-` `[` `]`만 쓸 수 있습니다(공백·따옴표 불가)."
+- 조회 응답은 저장된 값을 읽는다. 저장돼 있던 값이 형식에 맞지 않으면 응답에서 `null`로 보이고 실행도 기본 모델로 한다(DB 값은 그대로, 서버 경고 로그).
+
 ### 에이전트 권한(`permissions`)
 
 에이전트 생성·수정(`POST`·`PATCH …/agents`)과 설계 명세(`PUT /designs/{id}/spec`)의 `permissions` 본문이다. 원본: `schemas.AgentPermissions`.
