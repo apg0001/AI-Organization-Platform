@@ -363,6 +363,62 @@ test("승인 배너 '항상 허용' 뒤 같은 요청은 배너 없이 진행", 
   expect(consoleErrors, consoleErrors.join("\n")).toEqual([]);
 });
 
+test("커맨드 센터에서 권한 표 열기: 칸 저장·Esc로 닫으면 포커스 복귀(#87)", async ({ page }) => {
+  await login(page);
+  await page.getByRole("link", { name: "커맨드 센터", exact: true }).click();
+  const opener = page.getByRole("button", { name: "권한 표 열기" });
+  await opener.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog", { name: "권한 표" });
+  await expect(dialog).toBeVisible();
+  // 대화 화면을 떠나지 않는다. 지금 대화의 상대(조직 대화면 CEO) 행에 '현재 대화'가 적힌다.
+  await expect(page).toHaveURL(/\/command\//);
+  await expect(dialog.getByRole("row").filter({ hasText: "현재 대화" })).toHaveCount(1);
+
+  // 셸 칸을 바꾸면 저장된다(금지에서 넓히는 길이면 표 위에 확인 창이 겹쳐 뜬다 — setCell이 처리).
+  const shell = cellOf(page, "코드 리뷰어", "셸");
+  await expect(shell).toBeVisible();
+  const target = (await shell.getAttribute("data-state")) === "ask" ? "deny" : "ask";
+  await setCell(page, "코드 리뷰어", "셸", target);
+  await expect(dialog).toBeVisible(); // 확인 창을 닫아도 권한 표는 열려 있다
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(opener).toBeFocused();
+
+  // 다시 열면 저장된 값이 보인다. 조직 화면의 권한 탭도 같은 값이다.
+  await opener.click();
+  await expect(cellOf(page, "코드 리뷰어", "셸")).toHaveAttribute("data-state", target);
+  await page.keyboard.press("Escape");
+  await page.getByRole("link", { name: "조직", exact: true }).click();
+  await page.getByRole("tab", { name: "권한" }).click();
+  await expect(cellOf(page, "코드 리뷰어", "셸")).toHaveAttribute("data-state", target);
+  expect(consoleErrors, consoleErrors.join("\n")).toEqual([]);
+});
+
+test("권한 표에서 모델을 sonnet으로 바꾸면 저장되고 편집 창에 같은 값(#87)", async ({ page }) => {
+  await login(page);
+  await page.getByRole("link", { name: "커맨드 센터", exact: true }).click();
+  await page.getByRole("button", { name: "권한 표 열기" }).click();
+  const dialog = page.getByRole("dialog", { name: "권한 표" });
+  const model = dialog.getByRole("combobox", { name: "QA 엔지니어 모델" });
+  await expect(model).toHaveValue(""); // 기본값(Claude Code 기본 모델)
+  await model.selectOption("sonnet");
+  await expect(page.getByText("QA 엔지니어: 모델을 sonnet(으)로 저장했습니다.", { exact: false })).toBeVisible();
+  await expect(model).toHaveValue("sonnet");
+  await expect(model).toBeEnabled();
+  await page.keyboard.press("Escape");
+
+  // 새로고침해도 남고(서버에 저장됨), 조직 화면의 표와 에이전트 편집 창에도 같은 값이 보인다.
+  await page.reload();
+  await page.getByRole("link", { name: "조직", exact: true }).click();
+  await page.getByRole("tab", { name: "권한" }).click();
+  await expect(page.getByRole("combobox", { name: "QA 엔지니어 모델" })).toHaveValue("sonnet");
+  await page.getByRole("link", { name: /^QA 엔지니어 허용 규칙 \d+개, 전체 편집$/ }).click();
+  await expect(page.getByLabel("Claude 모델", { exact: true })).toHaveValue("sonnet");
+  expect(consoleErrors, consoleErrors.join("\n")).toEqual([]);
+});
+
 test("프로젝트 등록과 기능 관리·사무실 화면", async ({ page }) => {
   await login(page);
   const root = mkdtempSync(join(tmpdir(), "ai-org-e2e-code-"));

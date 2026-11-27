@@ -17,6 +17,7 @@ import {
   PanelRightOpen,
   Plus,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
   User,
   Users,
@@ -47,6 +48,7 @@ import {
   type Task,
   api,
 } from "@/lib/api";
+import { PermissionMatrix } from "@/features/permissions/PermissionMatrix";
 import { PermissionPopover } from "@/features/permissions/PermissionPopover";
 import { usePermissionChange } from "@/features/permissions/usePermissionChange";
 import { onLive } from "@/lib/live";
@@ -83,6 +85,13 @@ export function CommandCenter() {
   const { slot, rail } = useSidebarSlot();
   const [panelOpen, setPanelOpen] = useState(() => localStorage.getItem(PANEL_KEY) !== "closed");
   const [newOpen, setNewOpen] = useState(false);
+  // 권한 표 창(#87): 대화 화면을 떠나지 않고 조직의 권한 표를 연다. 연 요소를 기억해 닫을 때 포커스를 돌려준다.
+  const [matrixOpen, setMatrixOpen] = useState(false);
+  const matrixOpener = useRef<HTMLElement | null>(null);
+  const openMatrix = () => {
+    matrixOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setMatrixOpen(true);
+  };
 
   // 대화를 고르지 않았으면 가장 최근 대화로.
   useEffect(() => {
@@ -121,6 +130,15 @@ export function CommandCenter() {
       </div>
     );
   const agents = org.data?.agents ?? [];
+  // 지금 열린 대화의 상대(권한 표에서 강조): 에이전트 대화는 그 에이전트, 조직 대화는 CEO, 팀 대화는 그 부서 구성원.
+  const conv = openConv.data;
+  const currentAgentIds = !conv
+    ? []
+    : conv.target_kind === "agent"
+      ? agents.filter((a) => a.id === conv.target_id).map((a) => a.id)
+      : conv.target_kind === "team"
+        ? agents.filter((a) => a.department_id === conv.target_id).map((a) => a.id)
+        : agents.filter((a) => a.is_lead).map((a) => a.id);
 
   const projectName = new Map((projects.data ?? []).map((p) => [p.id, p.name]));
   const list = (
@@ -201,6 +219,7 @@ export function CommandCenter() {
           key={conversationId}
           conversationId={conversationId}
           agents={agents}
+          onOpenMatrix={openMatrix}
           panelOpen={panelOpen}
           togglePanel={() => {
             localStorage.setItem(PANEL_KEY, panelOpen ? "closed" : "open");
@@ -223,7 +242,27 @@ export function CommandCenter() {
         </div>
       )}
 
-      {panelOpen ? <ExecutionPanel orgId={orgId} agents={agents} conversationId={conversationId ?? null} /> : null}
+      {panelOpen ? <ExecutionPanel orgId={orgId} agents={agents} conversationId={conversationId ?? null} onOpenMatrix={openMatrix} /> : null}
+
+      <Dialog open={matrixOpen} onOpenChange={setMatrixOpen}>
+        <DialogContent
+          title="권한 표"
+          description="이 조직 에이전트의 권한과 모델입니다. 바꾸면 바로 저장되고, 조직 화면의 '권한' 탭과 같은 표입니다."
+          className="max-w-6xl"
+          onCloseAutoFocus={(event) => {
+            // 연 요소가 사라졌으면(팝오버 안의 링크 등) 대화 머리의 '권한' 버튼으로 돌려준다.
+            const opener = matrixOpener.current;
+            matrixOpener.current = null;
+            const target = opener?.isConnected ? opener : document.querySelector<HTMLElement>("[data-permission-matrix-button]");
+            if (target) {
+              event.preventDefault();
+              target.focus();
+            }
+          }}
+        >
+          {org.data ? <PermissionMatrix org={org.data} currentAgentIds={currentAgentIds} /> : <LoadingState />}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <NewConversation
@@ -330,7 +369,9 @@ function ChatPane({
   panelOpen,
   togglePanel,
   switcher,
+  onOpenMatrix,
 }: {
+  onOpenMatrix: () => void;
   switcher?: ReactNode;
   conversationId: string;
   agents: Agent[];
@@ -482,7 +523,7 @@ function ChatPane({
 
   return (
     <section className="flex min-h-0 min-w-0 flex-col" aria-label="채팅">
-      <ChatHeader conversation={c} agents={agents} panelOpen={panelOpen} togglePanel={togglePanel} switcher={switcher} />
+      <ChatHeader conversation={c} agents={agents} panelOpen={panelOpen} togglePanel={togglePanel} switcher={switcher} onOpenMatrix={onOpenMatrix} />
       <div
         ref={scrollRef}
         onScroll={(e) => {
@@ -562,7 +603,9 @@ function ChatHeader({
   panelOpen,
   togglePanel,
   switcher,
+  onOpenMatrix,
 }: {
+  onOpenMatrix: () => void;
   switcher?: ReactNode;
   conversation: ConversationDetail;
   agents: Agent[];
@@ -635,6 +678,9 @@ function ChatHeader({
             </option>
           ))}
         </Select>
+        <Button size="sm" variant="ghost" aria-label="권한 표 열기" title="권한 표 열기(에이전트별 권한·모델)" data-permission-matrix-button onClick={onOpenMatrix}>
+          <ShieldCheck /> 권한
+        </Button>
         <IconButton label={panelOpen ? "실행 패널 닫기" : "실행 패널 열기"} size="icon-sm" onClick={togglePanel}>
           {panelOpen ? <PanelRightClose /> : <PanelRightOpen />}
         </IconButton>
@@ -976,7 +1022,16 @@ function NoProjectNotice({
   );
 }
 
-function ExecutionPanel({ orgId, agents }: { orgId: string; agents: Agent[]; conversationId: string | null }) {
+function ExecutionPanel({
+  orgId,
+  agents,
+  onOpenMatrix,
+}: {
+  orgId: string;
+  agents: Agent[];
+  conversationId: string | null;
+  onOpenMatrix: () => void;
+}) {
   const approvals = useApprovals(orgId);
   const tasks = useTasks(orgId);
   const decide = useDecide();
@@ -1015,6 +1070,7 @@ function ExecutionPanel({ orgId, agents }: { orgId: string; agents: Agent[]; con
                     request={permissions.request}
                     confirming={permissions.confirming}
                     pending={permissions.pending}
+                    onOpenMatrix={onOpenMatrix}
                     className="font-medium"
                   />
                 ) : (
@@ -1045,7 +1101,13 @@ function ExecutionPanel({ orgId, agents }: { orgId: string; agents: Agent[]; con
               <AgentAvatar id={a.id} lead={a.is_lead} size={26} />
               <div className="min-w-0 flex-1">
                 <span className="flex items-center justify-between gap-2 text-sm">
-                  <PermissionPopover agent={a} request={permissions.request} confirming={permissions.confirming} pending={permissions.pending} />
+                  <PermissionPopover
+                    agent={a}
+                    request={permissions.request}
+                    confirming={permissions.confirming}
+                    pending={permissions.pending}
+                    onOpenMatrix={onOpenMatrix}
+                  />
                   <AgentStatus status={a.status} />
                 </span>
                 {latest ? (

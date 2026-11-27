@@ -38,7 +38,7 @@ from ai_org.models import (
 )
 from ai_org.runtime.activity import classify, target_of
 from ai_org.runtime.base import AgentRuntime, OrgTool, PermissionDecision, PermissionSource, RunRequest
-from ai_org.schemas import AgentPermissions, stored_permissions
+from ai_org.schemas import AgentPermissions, stored_model, stored_permissions
 from ai_org.services import policy, rules
 from ai_org.services.bus import EventBus
 from ai_org.services.capabilities import resolve_mcp_servers, resolve_plugin_paths
@@ -529,7 +529,7 @@ class RunManager:
             prompt=user_prompt(prompt, ctx, attachments, broadcast=route.broadcast),
             cwd=cwd,
             system_prompt_append=system_append(org, agent, agents, depts, route.scope, route.team, delegates),
-            model=agent.model,
+            model=stored_model(agent.model),
             disallowed_tools=policy.disallowed_tools(perms),
             permission_mode=perms.permission_mode,
             add_dirs=tuple(sorted({Path(a.stored_path).parent for a in attachments})),

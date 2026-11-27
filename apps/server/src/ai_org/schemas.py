@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
 from typing import Any, Literal
 
@@ -55,6 +56,40 @@ class AgentPermissions(BaseModel):
         from ai_org.services import rules  # 순환 import 방지(services.policy가 이 모듈을 쓴다)
 
         return rules.normalize(value)
+
+
+# 에이전트 모델 이름(Claude Code `model` 옵션으로 넘어간다). 이름 목록으로 제한하지는 않는다
+# (Claude Code가 받는 이름은 바뀔 수 있다). 형태만 본다: 옵션으로 오인될 `-` 시작·공백·따옴표·제어 문자 금지.
+MODEL_NAME = re.compile(r"^[A-Za-z0-9._:\[\]][A-Za-z0-9._:\-\[\]]{0,99}$")
+
+
+def clean_model(value: Any) -> str | None:
+    """입력된 모델 이름을 정리·검증한다. 빈 값은 None(기본 모델). 잘못된 값은 ValueError."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("모델 이름은 문자열이어야 합니다.")
+    name = value.strip()
+    if not name:
+        return None
+    if len(name) > 100:
+        raise ValueError("모델 이름은 100자를 넘을 수 없습니다.")
+    if name.startswith("-"):
+        raise ValueError("모델 이름은 `-`로 시작할 수 없습니다.")
+    if MODEL_NAME.fullmatch(name) is None:
+        raise ValueError(
+            "모델 이름에는 영문·숫자와 `.` `_` `:` `-` `[` `]`만 쓸 수 있습니다(공백·따옴표 불가)."
+        )
+    return name
+
+
+def stored_model(value: Any) -> str | None:
+    """DB에 저장된 모델 이름을 읽는다(실행·응답용). 검증에 걸리는 값은 기본 모델(None)로 본다."""
+    try:
+        return clean_model(value)
+    except ValueError:
+        logging.getLogger(__name__).warning("저장된 모델 이름이 올바르지 않아 기본 모델을 씁니다: %r", value)
+        return None
 
 
 def stored_permissions(raw: Any) -> AgentPermissions:
@@ -121,6 +156,11 @@ class AgentBase(BaseModel):
     pos_x: float | None = None
     pos_y: float | None = None
 
+    @field_validator("model", mode="before")
+    @classmethod
+    def _check_model(cls, value: Any) -> str | None:
+        return clean_model(value)
+
 
 class AgentIn(AgentBase):
     pass
@@ -147,6 +187,12 @@ class AgentPatch(BaseModel):
     pos_x: float | None = None
     pos_y: float | None = None
 
+    @field_validator("model", mode="before")
+    @classmethod
+    def _check_model(cls, value: Any) -> str | None:
+        # null을 명시하면 기본 모델로 되돌린다(필드를 생략한 것과는 exclude_unset으로 구분된다).
+        return clean_model(value)
+
 
 class AgentOut(ORM, AgentBase):
     id: str
@@ -160,6 +206,12 @@ class AgentOut(ORM, AgentBase):
     def _stored_permissions(cls, value: Any) -> Any:
         # 응답은 저장된 값을 읽는 것이므로, 검증이 강화돼 걸리는 옛 규칙 때문에 조회가 실패하지 않게 한다.
         return stored_permissions(value) if isinstance(value, dict) else value
+
+    @field_validator("model", mode="before")
+    @classmethod
+    def _check_model(cls, value: Any) -> str | None:
+        # 응답은 저장된 값을 읽는 것: 검증에 걸리는 옛 값 때문에 조회가 실패하지 않게 기본값으로 보인다.
+        return stored_model(value)
 
 
 class CollaborationIn(BaseModel):
