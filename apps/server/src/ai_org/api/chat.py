@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile, WebSocket
 from fastapi.responses import FileResponse
@@ -66,11 +66,19 @@ class ConversationPatch(BaseModel):
     archived: bool | None = None
 
 
+# 메시지 본문 규칙(새 메시지·대기 메시지 수정이 같이 쓴다).
+MessageContent = Annotated[str, Field(min_length=1, max_length=50_000)]
+
+
 class MessageIn(BaseModel):
-    content: str = Field(min_length=1, max_length=50_000)
+    content: MessageContent
     mention_agent_ids: list[str] = Field(default_factory=list, max_length=10)
     mention_all: bool = False
     attachment_ids: list[str] = Field(default_factory=list, max_length=att.MAX_FILES_PER_MESSAGE)
+
+
+class QueuedEditIn(BaseModel):
+    content: MessageContent
 
 
 class CommandIn(BaseModel):
@@ -256,6 +264,9 @@ async def send_message(conv_id: str, body: MessageIn, db: DB, request: Request) 
     if later_routes:
         data["queued"] = [route_json(r) for r in later_routes]
         data["queue_state"] = QUEUE_WAITING
+        if now_routes:
+            # 일부 대상은 바로 받는다: 이 메시지는 이미 전달된 것으로 보고 내용 수정을 막는다(#95).
+            data["delivered_agent_ids"] = [r.agent.id for r in now_routes]
     user = ChatMessage(conversation_id=conv.id, role="user", content=body.content, data=data)
     db.add(user)
     if conv.title == "새 대화":
@@ -283,6 +294,22 @@ async def cancel_queued(conv_id: str, message_id: str, db: DB, request: Request)
     runs_of(request).cancel_queued({conv.id}, "사용자가 취소했습니다.", message_id=msg.id)
     db.refresh(msg)
     return message_json(msg)
+
+
+@router.post("/conversations/{conv_id}/messages/{message_id}/edit-queued")
+async def edit_queued(
+    conv_id: str, message_id: str, body: QueuedEditIn, db: DB, request: Request
+) -> dict[str, Any]:
+    """아직 전달되지 않은 대기 메시지의 내용을 고친다(#95). 멘션·첨부는 그대로 둔다."""
+    conv = _get_conv(db, conv_id)
+    msg = db.get(ChatMessage, message_id)
+    if msg is None or msg.conversation_id != conv.id or msg.role != "user":
+        raise not_found("message")
+    # 상태 확인과 수정은 RunManager가 한 번에 한다(전달과 경쟁하지 않게). 여기서는 결과만 본다.
+    edited = runs_of(request).edit_queued(conv.id, msg.id, body.content)
+    if edited is None:
+        raise HTTPException(409, "이미 전달되었거나 대기 중이 아닌 메시지입니다.")
+    return message_json(edited)
 
 
 @router.post("/conversations/{conv_id}/messages/{message_id}/regenerate", status_code=202)

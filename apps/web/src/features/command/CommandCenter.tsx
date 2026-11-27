@@ -38,6 +38,7 @@ import { Dialog, DialogContent, DialogFooter, Menu, MenuContent, MenuItem, MenuL
 import {
   type ActivityEntry,
   type Agent,
+  type ChatMessage,
   type ApprovalRequest,
   type ApprovalSource,
   type ContextItem,
@@ -70,6 +71,7 @@ import { Composer, type SendPayload, sentHistory } from "./Composer";
 import { LiveDock, type Unseen } from "./LiveDock";
 import { dockItems, showDock } from "./dockState";
 import { ACTIVITY_LABELS, MessageView } from "./Messages";
+import { STALE_EDIT_MESSAGE, canEditQueued, editFailure } from "./queuedEdit";
 
 const PANEL_KEY = "ai-org.command.panel";
 
@@ -504,6 +506,27 @@ function ChatPane({
     void api(`/conversations/${conversationId}/messages/${messageId}/cancel-queued`, { method: "POST" })
       .then(refresh)
       .catch((e: Error) => toast.error(e.message));
+  // 대기 중인 메시지 수정(#95). 응답(갱신된 메시지)으로 캐시를 바로 고친다.
+  const editQueued = async (messageId: string, content: string): Promise<"saved" | "stale" | "error"> => {
+    try {
+      const updated = await api<ChatMessage>(`/conversations/${conversationId}/messages/${messageId}/edit-queued`, {
+        method: "POST",
+        body: { content },
+      });
+      queryClient.setQueryData<ConversationDetail>(["conversation", conversationId], (old) =>
+        old ? { ...old, messages: old.messages.map((m) => (m.id === updated.id ? updated : m)) } : old,
+      );
+      toast.success("대기 중인 메시지를 고쳤습니다.");
+      return "saved";
+    } catch (e) {
+      const kind = editFailure(e);
+      if (kind === "stale") {
+        toast.warning(STALE_EDIT_MESSAGE);
+        refresh();
+      } else toast.error((e as Error).message);
+      return kind;
+    }
+  };
   const regenerate = (messageId: string) =>
     void api(`/conversations/${conversationId}/messages/${messageId}/regenerate`, { method: "POST" })
       .then(refresh)
@@ -560,6 +583,7 @@ function ChatPane({
               onRegenerate={m.role === "assistant" && !busy ? () => regenerate(m.id) : undefined}
               queuedFor={m.data.queued?.map((q) => agentById.get(q.agent_id)?.name ?? "에이전트")}
               onCancelQueued={m.data.queue_state === "waiting" ? () => cancelQueued(m.id) : undefined}
+              onEditQueued={canEditQueued(m) ? (content) => editQueued(m.id, content) : undefined}
               onAction={() => !panelOpen && togglePanel()}
             />
             </div>

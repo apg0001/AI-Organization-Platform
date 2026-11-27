@@ -125,7 +125,20 @@ function AppSidebar({
       data-rail={rail}
       className="group/side flex w-60 shrink-0 flex-col border-r border-border bg-surface-1 transition-[width] duration-150 max-md:w-14 data-[rail=true]:w-14"
     >
-      <OrgSwitcher />
+      {/* 상단 줄: 조직 전환 + 사이드바 접기·펴기(#95). 접힌 막대에서는 접기 버튼이 맨 위, 조직 표시가 그 아래로 쌓인다. */}
+      <div className="flex items-center gap-1 px-2 pt-2 group-data-[rail=true]/side:flex-col-reverse group-data-[rail=true]/side:items-stretch">
+        <OrgSwitcher />
+        <button
+          type="button"
+          onClick={() => setRail(!rail)}
+          aria-label={rail ? "사이드바 펴기" : "사이드바 접기"}
+          aria-expanded={!rail}
+          title={`${rail ? "사이드바 펴기" : "사이드바 접기"} (Ctrl+B)`}
+          className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-md text-muted transition-colors duration-[120ms] hover:bg-surface-2 hover:text-fg max-md:hidden group-data-[rail=true]/side:w-full"
+        >
+          {rail ? <PanelLeftOpen className="size-4" aria-hidden /> : <PanelLeftClose className="size-4" aria-hidden />}
+        </button>
+      </div>
       <ul className="flex flex-col gap-0.5 px-2 pt-2">
         {NAV.map(({ to, label, icon: Icon, end }) => (
           <li key={to}>
@@ -171,16 +184,6 @@ function AppSidebar({
       </div>
       {/* 화면별 내용(커맨드 센터의 대화 목록). 접힌 막대·좁은 화면에서는 숨긴다. */}
       <div ref={onSlot} className="flex min-h-0 flex-1 flex-col max-md:hidden group-data-[rail=true]/side:hidden" />
-      <button
-        type="button"
-        onClick={() => setRail(!rail)}
-        aria-label={rail ? "사이드바 펴기" : "사이드바 접기"}
-        title={`${rail ? "사이드바 펴기" : "사이드바 접기"} (Ctrl+B)`}
-        className="mx-2 mb-1 flex h-9 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-sm text-muted transition-colors hover:bg-surface-2 hover:text-fg max-md:hidden"
-      >
-        {rail ? <PanelLeftOpen className="size-4 shrink-0" aria-hidden /> : <PanelLeftClose className="size-4 shrink-0" aria-hidden />}
-        <span className="truncate group-data-[rail=true]/side:sr-only">사이드바 접기</span>
-      </button>
       <PreferencesMenu />
       <UserMenu />
       <SystemStatus />
@@ -203,7 +206,7 @@ function OrgSwitcher() {
   return (
     <Menu>
       <MenuTrigger
-        className="mx-2 mt-2 flex h-11 cursor-pointer items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2"
+        className="flex h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2"
         aria-label="조직 선택"
       >
         <span className="grid size-7 shrink-0 place-items-center rounded-md bg-primary-soft font-pixel text-xs text-primary-text">

@@ -415,6 +415,9 @@ class RunManager:
         for m in messages:
             rest = [q for q in m.data.get("queued", []) if q.get("agent_id") != agent_id]
             data = {**m.data, "queued": rest}
+            if failure is None:
+                # 전달 기록: 한 에이전트라도 받았으면 내용을 고칠 수 없다(받은 내용과 화면 일치, #95).
+                data["delivered_agent_ids"] = [*m.data.get("delivered_agent_ids", []), agent_id]
             if not rest:
                 data["queue_state"] = QUEUE_CANCELLED if failure else QUEUE_DELIVERED
             if failure:
@@ -425,6 +428,35 @@ class RunManager:
             self.bus.publish(
                 "message.status", conversation_id=m.conversation_id, message_id=m.id, status=m.status
             )
+
+    def edit_queued(self, conversation_id: str, message_id: str, content: str) -> ChatMessage | None:
+        """대기 중인 메시지의 내용을 바꾼다(#95). 대기 중이 아니면(이미 전달·취소) None.
+
+        deliver_queued·cancel_queued와 같이 이벤트 루프 안에서 await 없이 한 번에 읽고 쓴다.
+        그래서 전달과 끼어들지 않는다: 전달이 먼저면 상태가 delivered라 None(409),
+        수정이 먼저면 전달이 수정된 내용을 읽는다.
+        여러 에이전트에게 보낸 메시지는 한 에이전트라도 이미 받았으면(data.delivered_agent_ids) None이다.
+        멘션·첨부·대기 대상(queued)은 바꾸지 않는다.
+        """
+        with self.factory() as db:
+            msg = db.get(ChatMessage, message_id)
+            if (
+                msg is None
+                or msg.conversation_id != conversation_id
+                or msg.role != "user"
+                or (msg.data or {}).get("queue_state") != QUEUE_WAITING
+                or msg.data.get("delivered_agent_ids")
+            ):
+                return None
+            msg.content = content
+            msg.data = {**msg.data, "edited_at": utcnow().isoformat()}
+            db.commit()
+            db.refresh(msg)
+            db.expunge(msg)
+        self.bus.publish(
+            "message.status", conversation_id=conversation_id, message_id=message_id, status=msg.status
+        )
+        return msg
 
     def cancel_queued(self, conversation_ids: set[str], note: str, message_id: str | None = None) -> int:
         """대기 중인 메시지를 취소한다(중지·사용자 취소). 취소한 개수를 돌려준다."""

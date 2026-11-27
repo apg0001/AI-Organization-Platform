@@ -387,6 +387,7 @@ export function Composer({
           disabled={disabled}
           placeholder={placeholder}
           aria-label="메시지"
+          data-composer-input
           className="resize-none overflow-y-hidden bg-transparent px-1.5 py-1 text-base leading-6 placeholder:text-faint focus:outline-none"
         />
         <div className="flex items-center gap-1">
