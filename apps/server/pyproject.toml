@@ -1,6 +1,6 @@
 [project]
 name = "ai-org-server"
-version = "0.5.0"
+version = "0.6.0"
 description = "AI Organization Platform — local backend (organization, agents, projects, capabilities, runtime)"
 license = "Apache-2.0"
 requires-python = ">=3.12"
