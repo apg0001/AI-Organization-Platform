@@ -474,6 +474,68 @@ test("대기 중인 메시지 수정: 고친 내용이 전달된다 · 사이드
   expect(consoleErrors, consoleErrors.join("\n")).toEqual([]);
 });
 
+test("대화 탭: 초안 유지·Alt+숫자 전환·비활성 탭 승인 배지·닫으면 이웃 탭(#96)", async ({ page }) => {
+  await login(page);
+  await page.getByRole("link", { name: "커맨드 센터", exact: true }).click();
+  await expect(page).toHaveURL(/\/command\/[^/]+$/);
+  const tablist = page.getByRole("tablist", { name: "열린 대화" });
+  const tabs = tablist.getByRole("tab");
+  await expect(tabs).toHaveCount(1); // 새 브라우저: 지금 연 대화 하나
+  const first = page.url();
+
+  // 새 대화는 새 탭으로 열린다.
+  await page.getByRole("button", { name: "새 대화" }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: "대화 시작" }).click();
+  await expect(tabs).toHaveCount(2);
+  await expect(page).not.toHaveURL(first);
+  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+  const second = page.url();
+  const input = page.getByLabel("메시지");
+  await expect(input).toBeFocused();
+
+  // (1) 탭마다 입력 초안이 남는다. Alt+1/Alt+2와 탭 클릭으로 오간다.
+  await input.fill("둘째 탭 초안");
+  await page.keyboard.press("Alt+1");
+  await expect(page).toHaveURL(first);
+  await expect(tabs.nth(0)).toHaveAttribute("aria-selected", "true");
+  await expect(input).toHaveValue("");
+  await input.fill("첫째 탭 초안");
+  await page.keyboard.press("Alt+2");
+  await expect(page).toHaveURL(second);
+  await expect(input).toHaveValue("둘째 탭 초안");
+  await expect(input).toBeFocused();
+  await tabs.nth(0).click();
+  await expect(input).toHaveValue("첫째 탭 초안");
+  // 키보드: 화살표로 탭 사이를 옮기고 Enter로 연다.
+  await tabs.nth(0).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(tabs.nth(1)).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(second);
+
+  // (2) 둘째 탭에서 승인을 기다리게 해 두고 첫째 탭으로 옮기면, 둘째 탭에 승인 대기 배지가 보인다.
+  await input.fill("[셸:git status]");
+  await input.press("Enter");
+  await expect(page.getByRole("alert").filter({ hasText: "실행 승인을 요청합니다" })).toBeVisible();
+  await page.keyboard.press("Alt+1");
+  await expect(page).toHaveURL(first);
+  await expect(tabs.nth(1)).toHaveAccessibleName(/승인 대기 1건/);
+  await expect(page.getByRole("alert").filter({ hasText: "실행 승인을 요청합니다" })).toHaveCount(0); // 배너는 그 대화에서만
+  await tabs.nth(1).click();
+  await page.getByRole("alert").filter({ hasText: "실행 승인을 요청합니다" }).getByRole("button", { name: "거부" }).click();
+  await expect(tabs.nth(1)).not.toHaveAccessibleName(/승인 대기/);
+
+  // (3) 활성 탭을 닫으면 이웃(왼쪽) 탭이 활성화되고 URL이 바뀐다.
+  await tablist.getByRole("button", { name: /^탭 닫기: / }).nth(1).click();
+  await expect(tabs).toHaveCount(1);
+  await expect(page).toHaveURL(first);
+  await expect(tabs.nth(0)).toHaveAttribute("aria-selected", "true");
+  // 새로고침해도 열린 탭 목록이 남는다(localStorage).
+  await page.reload();
+  await expect(page.getByRole("tablist", { name: "열린 대화" }).getByRole("tab")).toHaveCount(1);
+  expect(consoleErrors, consoleErrors.join("\n")).toEqual([]);
+});
+
 test("프로젝트 등록과 기능 관리·사무실 화면", async ({ page }) => {
   await login(page);
   const root = mkdtempSync(join(tmpdir(), "ai-org-e2e-code-"));
