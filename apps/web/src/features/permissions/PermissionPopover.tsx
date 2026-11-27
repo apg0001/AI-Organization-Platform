@@ -12,6 +12,7 @@ import type { Agent } from "@/lib/api";
 import { AUTO_DESCRIPTION, GROUPS, GROUP_LABELS } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
+import { ModelSelect } from "./ModelSelect";
 import { CellLegend, ModeSelect, PermissionCell } from "./PermissionParts";
 import type { RequestPermissionChange } from "./usePermissionChange";
 
@@ -22,8 +23,11 @@ export function PermissionPopover({
   request,
   confirming,
   pending,
+  onOpenMatrix,
   className,
 }: {
+  /** 주면 '권한 표 열기'(조직 전체 표)가 보인다. */
+  onOpenMatrix?: () => void;
   agent: Agent;
   request: RequestPermissionChange;
   confirming: boolean;
@@ -67,6 +71,11 @@ export function PermissionPopover({
           />
         </div>
         {perms.permission_mode === "auto" ? <p className="mt-1 text-2xs text-faint">{AUTO_DESCRIPTION}</p> : null}
+        <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+          <span className="text-muted">모델</span>
+          <ModelSelect agent={agent} />
+        </div>
+        <p className="mt-1 text-2xs text-faint">다음 실행부터 적용됩니다.</p>
         <ul className="mt-2 flex flex-col gap-1.5 border-t border-border pt-2">
           {GROUPS.map((group) => (
             <li key={group} className="flex items-start justify-between gap-3 text-sm">
@@ -90,12 +99,20 @@ export function PermissionPopover({
           </ul>
           {rules.length > SUMMARY_RULES ? <span className="text-2xs text-faint">외 {rules.length - SUMMARY_RULES}개</span> : null}
         </div>
-        <Link
-          to={`/agents/${agent.id}?tab=settings`}
-          className="mt-2 inline-block text-xs text-primary-text underline underline-offset-[3px]"
-        >
-          전체 편집
-        </Link>
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+          <Link to={`/agents/${agent.id}?tab=settings`} className="text-xs text-primary-text underline underline-offset-[3px]">
+            전체 편집
+          </Link>
+          {onOpenMatrix ? (
+            <button
+              type="button"
+              className="cursor-pointer rounded-sm text-xs text-primary-text underline underline-offset-[3px]"
+              onClick={onOpenMatrix}
+            >
+              권한 표 열기
+            </button>
+          ) : null}
+        </div>
       </PopoverContent>
     </Popover>
   );

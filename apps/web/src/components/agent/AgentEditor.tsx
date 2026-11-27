@@ -9,6 +9,7 @@ import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Button, IconButton } from "@/components/ui/button";
 import { Field, Input, Label, Select, Switch, Textarea } from "@/components/ui/form";
 import type { AgentPermissions, ApprovalGroup, Capability, PermissionMode, Recommendation, SpecAgent, SpecDepartment } from "@/lib/api";
+import { MODEL_NOTE, modelFromValue, modelOptions, modelToValue } from "@/lib/models";
 import { AUTO_DESCRIPTION, MAX_RULES, MAX_RULE_LENGTH, MODE_LABELS, ruleInputProblem } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
@@ -178,6 +179,17 @@ export function AgentEditor({
               onChange={(e) => setDraft({ ...draft, instructions: e.target.value })}
               onBlur={() => draft.instructions !== agent.instructions && commit({ instructions: draft.instructions })}
             />
+          )}
+        </Field>
+        <Field label="Claude 모델" hint={`${MODEL_NOTE} 기본값은 모델을 지정하지 않습니다.`}>
+          {(id) => (
+            <Select id={id} value={modelToValue(agent.model)} onChange={(e) => commit({ model: modelFromValue(e.target.value) })}>
+              {modelOptions(agent.model).map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
           )}
         </Field>
         <Switch
