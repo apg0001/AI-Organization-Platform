@@ -362,6 +362,8 @@ export interface ChatMessage {
     queued?: { agent_id: string }[];
     queue_state?: "waiting" | "delivered" | "cancelled";
     queue_note?: string;
+    /** 대기 중에 사용자가 내용을 고친 시각(#95). */
+    edited_at?: string;
   };
   activity: ActivityEntry[];
   status: "pending" | "streaming" | "done" | "error" | "interrupted";

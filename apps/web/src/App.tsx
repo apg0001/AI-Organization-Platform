@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { createBrowserRouter, Outlet, RouterProvider } from "react-router";
+import { createBrowserRouter, Outlet } from "react-router";
+// react-router/dom의 RouterProvider는 ReactDOM.flushSync를 연결한다. 대화 탭 이동은 flushSync로 URL과 화면을 함께 바꾼다(#96).
+import { RouterProvider } from "react-router/dom";
 import { Toaster } from "sonner";
 
 import { LoadingState } from "@/components/common/states";

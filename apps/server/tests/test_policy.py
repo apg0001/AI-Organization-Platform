@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from ai_org.runtime.activity import classify, is_test_command
 from ai_org.schemas import AgentPermissions
 from ai_org.services import policy
@@ -112,3 +114,72 @@ def test_shell_path_false_positives_from_dogfooding(tmp_path: Path) -> None:
     assert (
         policy.decide(perms, "Bash", {"command": "grep x /home"}, roots).action == "ask"
     )  # 실제로 있는 경로
+
+
+# ── #94: 슬래시만으로 된 인자(`//`) 오탐, 사유 중복 ─────────────────────────
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'grep -rn "//" src',
+        "grep -n '//' a.ts",
+        'rg "//"',
+        "rg '//\\s*TODO' src",
+        'grep -E "^//" a.ts',
+        "sed 's#//#/#' a.txt",
+        "echo ///",
+    ],
+)
+def test_slash_only_arguments_are_not_paths(tmp_path: Path, command: str) -> None:
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "a.ts").write_text("// x")
+    (root / "a.txt").write_text("a//b")
+    perms = AgentPermissions(allow_shell=True, require_approval=[])
+    assert policy.outside_paths(command, [root]) == [], command
+    verdict = policy.decide(perms, "Bash", {"command": command}, [root])
+    assert verdict.action == "allow" and verdict.outside is False, command
+
+
+@pytest.mark.parametrize(
+    ("command", "escaped"),
+    [
+        ("ls /", ["/"]),
+        ("find / -name x", ["/"]),
+        ("cat //etc/passwd", ["//etc/passwd"]),
+        ("cat /etc/passwd", ["/etc/passwd"]),
+        ("ls ~", ["~"]),
+    ],
+)
+def test_root_and_absolute_paths_still_ask(tmp_path: Path, command: str, escaped: list[str]) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    perms = AgentPermissions(allow_shell=True, require_approval=[])
+    assert policy.outside_paths(command, [root]) == escaped
+    verdict = policy.decide(perms, "Bash", {"command": command}, [root])
+    assert verdict.action == "ask" and verdict.outside is True
+
+
+def test_outside_reason_is_deduplicated_and_quoted(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    perms = AgentPermissions(allow_shell=True, require_approval=[])
+    command = "cat /etc/passwd /etc/passwd /etc/hosts"
+    assert policy.outside_paths(command, [root]) == ["/etc/passwd", "/etc/hosts"]
+    verdict = policy.decide(perms, "Bash", {"command": command}, [root])
+    assert verdict.reason == "작업 폴더 밖 경로를 참조합니다: '/etc/passwd', '/etc/hosts'"
+
+
+def test_slash_search_always_rule_is_exact(tmp_path: Path) -> None:
+    from ai_org.services import rules
+
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    rule, reason = rules.suggest("Bash", {"command": 'grep -rn "//" src'}, [root], group="shell")
+    assert rule == 'Bash(grep -rn "//" src)' and reason == ""  # 명령 전체 일치(따옴표 그대로)
+    # 규칙은 같은 명령만 열고, 같은 접두의 폴더 밖 검색은 여전히 묻는다.
+    perms = AgentPermissions(allow_shell=True, allow_rules=[rule], require_approval=["shell"])
+    assert policy.decide(perms, "Bash", {"command": 'grep -rn "//" src'}, [root]).explicit is True
+    assert policy.decide(perms, "Bash", {"command": 'grep -rn "//" /etc'}, [root]).action == "ask"
+    assert policy.decide(perms, "Bash", {"command": 'grep -rn "//" lib'}, [root]).action == "ask"

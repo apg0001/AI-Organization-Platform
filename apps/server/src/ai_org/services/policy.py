@@ -45,9 +45,15 @@ def _is_path_like(arg: str) -> bool:
     """경로 인자로 볼지.
 
     `/status` 같은 한 단계짜리 절대 문자열은 실제로 있을 때만 경로로 본다(검색어 오탐 방지).
+    슬래시 2개 이상으로만 된 인자(`//`, `///`)는 경로로 보지 않는다(#94). 루트를 가리키려고 `//`를 쓰는
+    일은 사실상 없고, 주석 기호 검색(`grep -rn "//" src`)·구분자로 흔하다. 단일 `/`는 루트로 본다
+    (`ls /`, `find / -name x`는 승인). `//etc/passwd`처럼 뒤에 이름이 붙으면 실제로 `/etc/passwd`이므로
+    아래 판정대로 경로다.
     """
     if arg.startswith("~") or arg == ".." or arg.startswith("../") or "/../" in arg:
         return True
+    if len(arg) >= 2 and arg.strip("/") == "":
+        return False
     if arg.startswith("/"):
         parts = [p for p in arg.split("/") if p]
         return len(parts) >= 2 or Path(arg).exists()
@@ -130,7 +136,7 @@ def outside_paths(command: str, roots: list[Path]) -> list[str]:
             continue
         if not within(resolved, roots):
             out.append(raw)
-    return out
+    return list(dict.fromkeys(out))  # 같은 값은 한 번만(순서 유지)
 
 
 Group = Literal["shell", "file_write", "file_delete", "network", "delegate", "mcp"]
@@ -221,7 +227,10 @@ def decide(
         if escaped:
             verb = "삭제하려 합니다" if group == "file_delete" else "참조합니다"
             return Verdict(
-                "ask", group, f"작업 폴더 밖 경로를 {verb}: " + ", ".join(escaped[:3]), outside=True
+                "ask",
+                group,
+                f"작업 폴더 밖 경로를 {verb}: " + ", ".join(f"'{p}'" for p in escaped[:3]),
+                outside=True,
             )
 
     # ③ 허용 리스트에 맞으면 묻지 않는다(삭제·위임은 규칙 대상이 아니다).
