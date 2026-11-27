@@ -1,13 +1,17 @@
-import { AlertTriangle, Check, ChevronRight, Clock, Copy, FileText, Loader2, RotateCcw, Square, TerminalSquare } from "lucide-react";
-import { type ComponentProps, memo, useState } from "react";
+import { AlertTriangle, Check, ChevronRight, Clock, Copy, FileText, Loader2, Pencil, RotateCcw, Square, TerminalSquare } from "lucide-react";
+import { type ComponentProps, memo, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 
 import { AgentAvatar } from "@/components/agent/AgentAvatar";
-import { IconButton } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/form";
 import type { ActivityEntry, Agent, ChatMessage } from "@/lib/api";
 import { cn, formatBytes } from "@/lib/utils";
+import { toast } from "sonner";
+
+import { MAX_MESSAGE_LENGTH, canCopy, canEditQueued, closedEditNotice, queuedEditProblem } from "./queuedEdit";
 
 export const ACTIVITY_LABELS: Record<string, string> = {
   reading: "읽기",
@@ -113,49 +117,170 @@ export function ActivityList({ entries, open: initial = false }: { entries: Acti
   );
 }
 
-export function MessageView({
+/**
+ * 사용자 메시지. 대기 중이면 '수정'·'취소'를 보인다(#45, #95).
+ * 수정은 그 자리에서 편집한다: Ctrl/⌘+Enter 저장, Esc 취소. 편집 중에 메시지가 전달·취소되면 편집을 닫고,
+ * 입력하던 내용은 잃지 않게 알림의 '내용 복사' 버튼으로 클립보드에 담을 수 있게 한다.
+ */
+function UserMessage({
   message,
-  agent,
-  delegatedBy,
-  liveText,
-  liveActivity,
-  onRegenerate,
-  onAction,
   queuedFor,
   onCancelQueued,
+  onEditQueued,
 }: {
   message: ChatMessage;
-  agent?: Agent;
-  /** 대기 중인 메시지를 받을 에이전트 이름들(#45). */
   queuedFor?: string[];
   onCancelQueued?: () => void;
-  delegatedBy?: Agent;
-  liveText?: string;
-  liveActivity?: ActivityEntry[];
-  onRegenerate?: () => void;
-  onAction?: (action: NonNullable<NonNullable<ChatMessage["data"]["result"]>["action"]>) => void;
+  onEditQueued?: (content: string) => Promise<"saved" | "stale" | "error">;
 }) {
-  if (message.role === "user") {
-    const atts = message.data.attachments ?? [];
-    return (
-      <div className="flex flex-col items-end gap-1.5">
+  const atts = message.data.attachments ?? [];
+  const editable = canEditQueued(message) && Boolean(onEditQueued);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const editButton = useRef<HTMLButtonElement>(null);
+  const editing = draft !== null;
+  // 편집하는 동안 메시지가 전달·취소되면(실시간 이벤트로 목록이 갱신됨) 편집을 닫고 알린다.
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const waiting = message.data.queue_state === "waiting";
+  // 닫힐 때 입력하던 내용은 버리지 않고 메시지 아래 읽기 전용 상자에 남긴다(클립보드가 없거나 실패해도 직접 선택해 복사할 수 있게).
+  const [leftover, setLeftover] = useState<string | null>(null);
+  useEffect(() => {
+    const text = draftRef.current;
+    if (waiting || text === null) return;
+    setDraft(null);
+    setSaving(false);
+    setLeftover(text);
+    toast.warning(closedEditNotice(message.data.queue_state), { duration: 10_000 });
+    // '수정' 버튼도 사라지므로 포커스를 입력창으로 옮긴다(body로 떨어지지 않게).
+    window.requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-composer-input]")?.focus());
+  }, [waiting, message.data.queue_state]);
+  const copyLeftover = () => {
+    if (leftover === null) return;
+    navigator.clipboard
+      .writeText(leftover)
+      .then(() => toast.success("입력하던 내용을 복사했습니다."))
+      .catch(() => toast.error("복사하지 못했습니다. 상자 안의 글을 직접 선택해 복사하세요."));
+  };
+
+  const close = () => {
+    setDraft(null);
+    setProblem(null);
+    window.requestAnimationFrame(() => editButton.current?.focus());
+  };
+  const save = async () => {
+    if (draft === null || saving || !onEditQueued) return;
+    const found = queuedEditProblem(message.content, draft);
+    if (found === "바뀐 내용이 없습니다.") return close();
+    setProblem(found);
+    if (found) return;
+    setSaving(true);
+    const result = await onEditQueued(draft);
+    setSaving(false);
+    // stale이면 부모가 이미 알렸다. 위의 효과가 다시 알리지 않게 먼저 편집을 닫는다.
+    if (result !== "error") {
+      draftRef.current = null;
+      close();
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-end gap-1.5">
+      {editing ? (
+        <div className="flex w-full max-w-[min(80%,72ch)] flex-col gap-1.5">
+          <Textarea
+            autoFocus
+            aria-label="대기 중인 메시지 수정"
+            aria-invalid={problem ? true : undefined}
+            aria-busy={saving || undefined}
+            className="min-h-24 text-base"
+            value={draft}
+            disabled={saving}
+            maxLength={MAX_MESSAGE_LENGTH}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setProblem(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                void save();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                close();
+              }
+            }}
+          />
+          {problem ? (
+            <p className="text-xs text-danger" role="alert">
+              {problem}
+            </p>
+          ) : null}
+          <div className="flex items-center justify-end gap-2">
+            <span className="mr-auto text-2xs text-faint">Ctrl/⌘+Enter 저장 · Esc 취소. 멘션·첨부는 바뀌지 않습니다.</span>
+            <Button size="sm" variant="ghost" disabled={saving} onClick={close}>
+              취소
+            </Button>
+            <Button size="sm" variant="primary" disabled={saving} onClick={() => void save()}>
+              {saving ? <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden /> : <Check aria-hidden />}
+              {saving ? "저장 중…" : "저장"}
+            </Button>
+          </div>
+        </div>
+      ) : (
         <div className="max-w-[min(80%,72ch)] rounded-lg bg-surface-3 px-3.5 py-2.5 text-base whitespace-pre-wrap">
           {message.data.mention_all ? <span className="mr-1 text-primary-text">@All</span> : null}
           {message.content}
         </div>
-        {message.data.queue_state === "waiting" ? (
-          <div className="flex items-center gap-2 text-xs text-muted" role="status">
-            <Clock className="size-3.5" aria-hidden />
-            <span>대기 중 · {queuedFor?.length ? `${queuedFor.join(", ")}의 ` : ""}지금 응답이 끝나면 이어서 전달합니다</span>
-            {onCancelQueued ? (
-              <button type="button" className="rounded-sm px-1 text-primary-text hover:underline" onClick={onCancelQueued}>
-                취소
-              </button>
+      )}
+      {message.data.edited_at ? (
+        <span className="text-2xs text-faint" title={`수정한 시각: ${new Date(message.data.edited_at).toLocaleString()}`}>
+          수정됨
+        </span>
+      ) : null}
+      {waiting ? (
+        <div className="flex items-center gap-2 text-xs text-muted" role="status">
+          <Clock className="size-3.5" aria-hidden />
+          <span>대기 중 · {queuedFor?.length ? `${queuedFor.join(", ")}의 ` : ""}지금 응답이 끝나면 이어서 전달합니다</span>
+          {editable && !editing ? (
+            <button
+              ref={editButton}
+              type="button"
+              aria-label="대기 중인 메시지 수정"
+              className="flex items-center gap-1 rounded-sm px-1 text-primary-text hover:underline"
+              onClick={() => setDraft(message.content)}
+            >
+              <Pencil className="size-3" aria-hidden />
+              수정
+            </button>
+          ) : null}
+          {onCancelQueued ? (
+            <button type="button" className="rounded-sm px-1 text-primary-text hover:underline" disabled={saving} onClick={onCancelQueued}>
+              취소
+            </button>
+          ) : null}
+        </div>
+      ) : message.data.queue_state === "cancelled" ? (
+        <p className="text-xs text-faint">전달하지 않음 · {message.data.queue_note ?? "취소됨"}</p>
+      ) : null}
+      {leftover !== null ? (
+        <div className="flex w-full max-w-[min(80%,72ch)] flex-col gap-1.5 rounded-md border border-warning-border bg-warning-surface px-3 py-2">
+          <p className="text-xs text-warning">반영되지 않은 수정 내용입니다. 필요하면 복사해 다시 보내세요.</p>
+          <Textarea readOnly aria-label="반영되지 않은 수정 내용" className="min-h-16 text-sm" value={leftover} onFocus={(e) => e.currentTarget.select()} />
+          <div className="flex justify-end gap-2">
+            {canCopy(typeof navigator === "undefined" ? undefined : navigator) ? (
+              <Button size="sm" variant="secondary" onClick={copyLeftover}>
+                <Copy aria-hidden /> 내용 복사
+              </Button>
             ) : null}
+            <Button size="sm" variant="ghost" onClick={() => setLeftover(null)}>
+              닫기
+            </Button>
           </div>
-        ) : message.data.queue_state === "cancelled" ? (
-          <p className="text-xs text-faint">전달하지 않음 · {message.data.queue_note ?? "취소됨"}</p>
-        ) : null}
+        </div>
+      ) : null}
         {atts.length ? (
           <div className="flex flex-wrap justify-end gap-1.5">
             {atts.map((a) =>
@@ -179,9 +304,36 @@ export function MessageView({
             )}
           </div>
         ) : null}
-      </div>
-    );
-  }
+    </div>
+  );
+}
+
+export function MessageView({
+  message,
+  agent,
+  delegatedBy,
+  liveText,
+  liveActivity,
+  onRegenerate,
+  onAction,
+  queuedFor,
+  onCancelQueued,
+  onEditQueued,
+}: {
+  message: ChatMessage;
+  agent?: Agent;
+  /** 대기 중인 메시지를 받을 에이전트 이름들(#45). */
+  queuedFor?: string[];
+  onCancelQueued?: () => void;
+  /** 대기 중인 메시지 내용 저장(#95). 저장되면 "saved", 그사이 전달·취소됐으면 "stale", 그 밖의 실패는 "error". */
+  onEditQueued?: (content: string) => Promise<"saved" | "stale" | "error">;
+  delegatedBy?: Agent;
+  liveText?: string;
+  liveActivity?: ActivityEntry[];
+  onRegenerate?: () => void;
+  onAction?: (action: NonNullable<NonNullable<ChatMessage["data"]["result"]>["action"]>) => void;
+}) {
+  if (message.role === "user") return <UserMessage message={message} queuedFor={queuedFor} onCancelQueued={onCancelQueued} onEditQueued={onEditQueued} />;
 
   if (message.role === "command") {
     const result = message.data.result;

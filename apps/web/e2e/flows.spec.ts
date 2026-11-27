@@ -419,6 +419,61 @@ test("권한 표에서 모델을 sonnet으로 바꾸면 저장되고 편집 창�
   expect(consoleErrors, consoleErrors.join("\n")).toEqual([]);
 });
 
+test("대기 중인 메시지 수정: 고친 내용이 전달된다 · 사이드바 상단 접기 버튼(#95)", async ({ page }) => {
+  await login(page);
+  await page.getByRole("link", { name: "커맨드 센터", exact: true }).click();
+
+  // 사이드바 접기·펴기 버튼은 상단(조직 줄)에 있고 aria-expanded로 상태를 알린다.
+  const nav = page.getByRole("navigation", { name: "주 메뉴" });
+  const collapse = nav.getByRole("button", { name: "사이드바 접기" });
+  await expect(collapse).toHaveAttribute("aria-expanded", "true");
+  await collapse.click();
+  const expand = nav.getByRole("button", { name: "사이드바 펴기" });
+  await expect(expand).toHaveAttribute("aria-expanded", "false");
+  await expand.click();
+  await expect(nav.getByRole("button", { name: "사이드바 접기" })).toHaveAttribute("aria-expanded", "true");
+
+  // 새 CEO 대화에서 승인을 기다리는 동안 메시지를 보내 대기열에 넣는다(CEO 셸은 앞 테스트에서 '승인 필요', git status는 규칙 없음).
+  await expect(page).toHaveURL(/\/command\/[^/]+$/);
+  const before = page.url();
+  await page.getByRole("button", { name: "새 대화" }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: "대화 시작" }).click();
+  // 새 대화로 옮겨 간 뒤에 보낸다(옮기기 전에 보내면 앞 대화로 간다).
+  await expect(page).not.toHaveURL(before);
+  await expect(page.getByRole("region", { name: "채팅" }).getByText("무엇을 맡길까요?")).toBeVisible();
+  const input = page.getByLabel("메시지");
+  const chatLog = page.locator("[data-message-id]");
+  await input.fill("[셸:git status]");
+  await input.press("Enter");
+  const banner = page.getByRole("alert").filter({ hasText: "실행 승인을 요청합니다" });
+  await expect(banner).toBeVisible();
+  await input.fill("수정 전 대기 메시지");
+  await input.press("Enter");
+  const waiting = page.getByRole("status").filter({ hasText: "지금 응답이 끝나면 이어서 전달합니다" });
+  await expect(waiting).toBeVisible();
+
+  // '수정'으로 그 자리에서 고친다(Esc는 취소, Ctrl+Enter는 저장).
+  await waiting.getByRole("button", { name: "대기 중인 메시지 수정" }).click();
+  const editor = page.getByRole("textbox", { name: "대기 중인 메시지 수정" });
+  await editor.fill("버려질 내용");
+  await editor.press("Escape");
+  await expect(editor).toHaveCount(0);
+  await expect(chatLog.getByText("수정 전 대기 메시지")).toBeVisible();
+  await waiting.getByRole("button", { name: "대기 중인 메시지 수정" }).click();
+  await editor.fill("수정 후 대기 메시지");
+  await editor.press("Control+Enter");
+  await expect(editor).toHaveCount(0);
+  await expect(chatLog.getByText("수정 후 대기 메시지")).toBeVisible();
+  await expect(chatLog.getByText("수정됨", { exact: true })).toBeVisible();
+
+  // 지금 응답이 끝나면 고친 내용이 전달된다(가짜 런타임은 받은 마지막 줄을 응답에 넣는다).
+  await banner.getByRole("button", { name: "거부" }).click();
+  await expect(waiting).toHaveCount(0);
+  await expect(chatLog.getByText("가짜 런타임 응답입니다:").last()).toContainText("수정 후 대기 메시지");
+  await expect(chatLog.getByText("가짜 런타임 응답입니다:").last()).not.toContainText("수정 전");
+  expect(consoleErrors, consoleErrors.join("\n")).toEqual([]);
+});
+
 test("프로젝트 등록과 기능 관리·사무실 화면", async ({ page }) => {
   await login(page);
   const root = mkdtempSync(join(tmpdir(), "ai-org-e2e-code-"));
