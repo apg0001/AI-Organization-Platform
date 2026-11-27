@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/form";
 import { type AuthStatus, type AuthUser, UNAUTHORIZED_EVENT, api } from "@/lib/api";
 import { getTheme, isTheme, setTheme } from "@/lib/theme";
+import { clearAllDrafts } from "@/features/command/drafts";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -58,6 +59,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     refresh,
     logout: async () => {
       await api("/auth/logout", { method: "POST" });
+      // 대화별 입력 초안(#96)은 이 브라우저 탭의 sessionStorage에 있다. 로그아웃하면 지운다.
+      clearAllDrafts();
       refresh();
     },
   };

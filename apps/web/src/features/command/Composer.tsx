@@ -21,6 +21,8 @@ import { IconButton } from "@/components/ui/button";
 import { type Agent, type AttachmentInfo, type CommandSpec, api, uploadFile } from "@/lib/api";
 import { cn, formatBytes } from "@/lib/utils";
 
+import { loadDraft, saveDraft } from "./drafts";
+
 const MAX_BYTES = 20 * 1024 * 1024;
 const MAX_FILES = 10;
 /** 입력창이 내용에 맞춰 늘어나는 최대 줄 수. 넘으면 입력창 안에서 스크롤한다. */
@@ -105,7 +107,10 @@ export function Composer({
   onStop,
   placeholder,
   history = [],
+  draftKey,
 }: {
+  /** 대화별 입력 초안 저장 키(#96). 주면 쓰던 글을 저장해 두고 다시 그릴 때 되살린다(첨부는 저장하지 않음). */
+  draftKey?: string;
   /** ↑/↓로 다시 불러올 보낸 글(오래된 것 먼저). */
   history?: string[];
   agents: Agent[];
@@ -117,7 +122,7 @@ export function Composer({
   onStop: () => void;
   placeholder: string;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(() => (draftKey ? loadDraft(draftKey) : ""));
   const [files, setFiles] = useState<Pending[]>([]);
   const [dragging, setDragging] = useState(false);
   const [active, setActive] = useState(0);
@@ -128,6 +133,11 @@ export function Composer({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const enabled = agents.filter((a) => a.enabled);
+
+  // 쓰던 글을 대화별 초안으로 둔다(탭을 오가도 남게). 보내서 비우면 초안도 지워진다.
+  useEffect(() => {
+    if (draftKey) saveDraft(draftKey, text);
+  }, [draftKey, text]);
 
   // 글이 바뀔 때마다(입력·붙여넣기·보낸 뒤 비우기) 높이를 맞춘다.
   useLayoutEffect(() => {

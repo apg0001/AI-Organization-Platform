@@ -24,7 +24,7 @@ import {
   X,
   FolderX,
 } from "lucide-react";
-import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -70,7 +70,21 @@ import { TaskStatus } from "@/features/dashboard/DashboardPage";
 import { Composer, type SendPayload, sentHistory } from "./Composer";
 import { LiveDock, type Unseen } from "./LiveDock";
 import { dockItems, showDock } from "./dockState";
+import { ChatTabs } from "./ChatTabs";
+import { draftKey, pruneDrafts, recallScroll, rememberScroll } from "./drafts";
 import { ACTIVITY_LABELS, MessageView } from "./Messages";
+import {
+  FULL_MESSAGE,
+  TABS_KEY_PREFIX,
+  type Tabs,
+  closeTab,
+  nthTab,
+  openTab,
+  parseStoredTabs,
+  placeActive,
+  pruneTabs,
+  tabShortcut,
+} from "./tabsState";
 import { STALE_EDIT_MESSAGE, canEditQueued, editFailure } from "./queuedEdit";
 
 const PANEL_KEY = "ai-org.command.panel";
@@ -95,10 +109,112 @@ export function CommandCenter() {
     setMatrixOpen(true);
   };
 
-  // 대화를 고르지 않았으면 가장 최근 대화로.
+  // ── 대화 탭(#96) ─────────────────────────────────────────────────────
+  // 활성 탭 = URL. 열린 탭 목록 = 조직별 localStorage. 조직이 바뀌면 그 조직의 탭 목록으로 바꾼다(렌더 중 맞춤).
+  const [tabState, setTabState] = useState(() => ({ org: orgId, tabs: parseStoredTabs(localStorage.getItem(TABS_KEY_PREFIX + orgId)) as Tabs }));
+  if (tabState.org !== orgId) setTabState({ org: orgId, tabs: parseStoredTabs(localStorage.getItem(TABS_KEY_PREFIX + orgId)) });
+  const tabs = tabState.org === orgId ? tabState.tabs : [];
+  const setTabs = (update: (tabs: Tabs) => Tabs) => setTabState((s) => ({ ...s, tabs: update(s.tabs) }));
   useEffect(() => {
-    if (!conversationId && conversations.data?.[0]) navigate(`/command/${conversations.data[0].id}`, { replace: true });
-  }, [conversationId, conversations.data, navigate]);
+    if (tabState.org) localStorage.setItem(TABS_KEY_PREFIX + tabState.org, JSON.stringify(tabState.tabs));
+  }, [tabState]);
+  // URL의 대화가 탭에 없으면(대화 목록 일반 클릭·조직 따라가기·직접 링크) 방금까지 보던 탭의 내용을 바꾼다. 새 탭은 열지 않는다.
+  // 그 대화가 지금 조직의 것일 때만 반영한다. 다른 조직의 대화 링크면 조직이 바뀐 뒤 그 조직의 탭 목록에 넣는다(placeActive).
+  const lastActive = useRef<string | null>(null);
+  const convOrg = openConv.data?.id === conversationId ? openConv.data?.organization_id : undefined;
+  useEffect(() => {
+    if (!conversationId) return;
+    const id = conversationId;
+    const previous = lastActive.current;
+    setTabs((t) => placeActive(t, previous, id, convOrg, orgId) ?? t);
+    // 반영했을 때만 '방금까지 보던 탭'을 바꾼다(기다리는 동안에는 앞 탭을 기억해 둔다).
+    if (convOrg && convOrg === orgId) lastActive.current = id;
+  }, [conversationId, convOrg, orgId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 삭제·보관된 대화의 탭은 뺀다. 목록을 받는 중에는 건드리지 않는다(방금 만든 대화가 빠지지 않게).
+  const knownIds = conversations.isFetching ? undefined : conversations.data?.map((c) => c.id);
+  const knownKey = knownIds?.join(",");
+  useEffect(() => {
+    if (!knownIds) return;
+    setTabs((t) => pruneTabs(t, conversationId ? [...knownIds, conversationId] : knownIds));
+    // 삭제·보관된 대화의 입력 초안도 함께 지운다.
+    pruneDrafts(orgId, conversationId ? [...knownIds, conversationId] : knownIds);
+  }, [knownKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 비활성 탭에서 끝난 응답은 '새 응답' 점으로 알린다. 탭을 활성화하면 지운다.
+  const [unread, setUnread] = useState<ReadonlySet<string>>(new Set());
+  const activeRef = useRef(conversationId);
+  activeRef.current = conversationId;
+  useEffect(
+    () =>
+      onLive((event) => {
+        if (event.type !== "message.completed") return;
+        const id = String(event.conversation_id);
+        if (id === activeRef.current || (event.message as { role?: string } | undefined)?.role !== "assistant") return;
+        setUnread((u) => (u.has(id) ? u : new Set(u).add(id)));
+      }),
+    [],
+  );
+  useEffect(() => {
+    if (conversationId) setUnread((u) => (u.has(conversationId) ? new Set([...u].filter((x) => x !== conversationId)) : u));
+  }, [conversationId]);
+  // 탭을 바꿀 때만 입력창으로 포커스를 옮긴다(처음 열 때는 그대로).
+  // 어느 대화의 입력창인지까지 기억한다: 라우터 이동이 상태 갱신보다 늦게 반영될 수 있어, 그 사이 이전 대화가 포커스 요청을 가져가지 않게.
+  const [focusTarget, setFocusTarget] = useState<string | null>(null);
+  // 탭 이동은 flushSync로 바로 그린다. 라우터는 기본적으로 화면 갱신을 startTransition으로 미루는데,
+  // 그러면 주소는 새 대화인데 화면·입력창·conversationId는 이전 대화로 남는 순간이 생긴다(느린 기기에서 길어짐).
+  // 그 사이 입력·전송은 이전 대화로 가고, 그 사이 누른 Alt+숫자는 이전 값과 비교돼 무시됐다(#96 E2E).
+  const activate = (id: string) => {
+    setFocusTarget(id);
+    if (id !== conversationId) navigate(`/command/${id}`, { flushSync: true });
+    else window.requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-composer-input]")?.focus());
+  };
+  const openInNewTab = (id: string) => {
+    const result = openTab(tabs, id, conversationId);
+    if (result.rejected) {
+      toast.warning(FULL_MESSAGE);
+      return;
+    }
+    setTabs(() => result.tabs);
+    activate(id);
+  };
+  const close = (id: string) => {
+    const result = closeTab(tabs, id, conversationId);
+    setTabs(() => result.tabs);
+    if (id !== conversationId) return;
+    setFocusTarget(result.active);
+    // 마지막 탭을 닫으면 가장 최근 대화가 다시 열린다(대화 화면이 빈 채로 남지 않게).
+    lastActive.current = null;
+    navigate(result.active ? `/command/${result.active}` : "/command", { replace: !result.active, flushSync: true });
+  };
+  // Alt+1~9(n번째 탭), Alt+W(현재 탭 닫기). 브라우저 탭 단축키(Ctrl+…)와 겹치지 않는다. 입력 중에도 동작한다.
+  const shortcut = useRef<(e: KeyboardEvent) => void>(() => undefined);
+  shortcut.current = (e: KeyboardEvent) => {
+    const action = tabShortcut(e);
+    if (!action) return;
+    if (action.kind === "nth") {
+      const id = nthTab(tabs, action.n);
+      if (!id) return;
+      e.preventDefault();
+      activate(id);
+    } else if (conversationId) {
+      e.preventDefault();
+      close(conversationId);
+    }
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => shortcut.current(e);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const approvalsAll = useApprovals(orgId);
+  const created = useRef(false);
+
+  // 대화를 고르지 않았으면 열린 첫 탭으로, 탭이 없으면 가장 최근 대화로.
+  useEffect(() => {
+    if (conversationId || !conversations.data) return;
+    const known = new Set(conversations.data.map((c) => c.id));
+    const target = tabs.find((t) => known.has(t)) ?? conversations.data[0]?.id;
+    if (target) navigate(`/command/${target}`, { replace: true });
+  }, [conversationId, conversations.data, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 조직과 열린 대화를 맞춘다(#79): 왼쪽 위에서 조직을 바꾸면 그 조직의 대화로 가고,
   // 다른 조직의 대화 링크를 열면 조직을 그 대화의 조직으로 바꾼다.
@@ -117,8 +233,13 @@ export function CommandCenter() {
       api<Conversation>("/conversations", { method: "POST", body: { organization_id: orgId, ...body } }),
     onSuccess: (c) => {
       void queryClient.invalidateQueries({ queryKey: ["conversations", orgId] });
+      created.current = true;
       setNewOpen(false);
-      navigate(`/command/${c.id}`);
+      // 새 대화는 새 탭으로 연다. 탭이 가득 찼으면 알리고 현재 탭에서 연다.
+      const result = openTab(tabs, c.id, conversationId);
+      if (result.rejected) toast.warning(`${FULL_MESSAGE} 새 대화는 현재 탭에서 열었습니다.`);
+      else setTabs(() => result.tabs);
+      activate(c.id);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -161,6 +282,24 @@ export function CommandCenter() {
             <Link
               to={`/command/${c.id}`}
               aria-current={c.id === conversationId ? "page" : undefined}
+              title="Ctrl/⌘+클릭 또는 가운데 클릭: 새 탭으로 열기"
+              onClick={(e) => {
+                // Ctrl/⌘+클릭은 새 탭으로. 일반 클릭은 현재 탭의 대화를 바꾼다(이미 다른 탭에 있으면 그 탭으로).
+                if (e.ctrlKey || e.metaKey) {
+                  e.preventDefault();
+                  openInNewTab(c.id);
+                } else if (e.button === 0 && !e.shiftKey && !e.altKey) {
+                  // 탭 이동과 같이 flushSync로 바로 그린다(주소와 화면이 어긋나지 않게).
+                  e.preventDefault();
+                  if (tabs.includes(c.id)) setFocusTarget(c.id);
+                  if (c.id !== conversationId) navigate(`/command/${c.id}`, { flushSync: true });
+                }
+              }}
+              onAuxClick={(e) => {
+                if (e.button !== 1) return;
+                e.preventDefault();
+                openInNewTab(c.id);
+              }}
               className={cn(
                 "flex flex-col gap-0.5 rounded-md px-2 py-1.5 transition-colors",
                 c.id === conversationId ? "bg-surface-3" : "hover:bg-surface-2",
@@ -197,7 +336,27 @@ export function CommandCenter() {
       {/* 대화 목록은 주 사이드바 안에 그린다(#79). 사이드바가 접혔거나 좁은 화면이면 대화 위쪽 '대화' 메뉴로. */}
       {slot ? createPortal(list, slot) : null}
       {conversationId ? (
+        <div className="flex min-h-0 min-w-0 flex-col">
+        <ChatTabs
+          tabs={tabs.map((id) => {
+            const c = conversations.data?.find((x) => x.id === id);
+            return {
+              id,
+              title: c?.title ?? (id === conversationId ? openConv.data?.title : undefined) ?? "대화",
+              busy: Boolean(c?.busy),
+              approvals: (approvalsAll.data ?? []).filter((a) => a.detail?.conversation_id === id).length,
+              unread: unread.has(id),
+            };
+          })}
+          active={conversationId}
+          onActivate={activate}
+          onClose={close}
+        />
+        {/* 활성 탭의 내용만 그린다(비활성 탭은 그리지 않음). '채팅' 영역(region)은 그 안에 그대로 둔다. */}
+        <div role="tabpanel" id="chat-tab-panel" aria-labelledby={`chat-tab-${conversationId}`} className="flex min-h-0 min-w-0 flex-1 flex-col">
         <ChatPane
+          focusComposer={focusTarget === conversationId}
+          onFocused={() => setFocusTarget(null)}
           switcher={
             // 사이드바가 접혔거나 좁은 화면이면 대화 목록 대신 메뉴로 대화를 바꾼다.
             <Menu>
@@ -211,7 +370,7 @@ export function CommandCenter() {
                   <MessageSquarePlus /> 새 대화
                 </MenuItem>
                 {(conversations.data ?? []).map((c) => (
-                  <MenuItem key={c.id} onSelect={() => navigate(`/command/${c.id}`)}>
+                  <MenuItem key={c.id} onSelect={() => navigate(`/command/${c.id}`, { flushSync: true })}>
                     <span className={cn("truncate", c.id === conversationId && "font-medium text-primary-text")}>{c.title}</span>
                   </MenuItem>
                 ))}
@@ -228,6 +387,8 @@ export function CommandCenter() {
             setPanelOpen(!panelOpen);
           }}
         />
+        </div>
+        </div>
       ) : (
         <div className="p-6">
           <EmptyState
@@ -272,6 +433,15 @@ export function CommandCenter() {
           projects={(projects.data ?? []).map((p) => ({ id: p.id, name: p.name, linked: p.organization_id === orgId }))}
           onCreate={(kind, id, projectId) => create.mutate({ target_kind: kind, target_id: id, project_id: projectId })}
           pending={create.isPending}
+          onCloseAutoFocus={(event) => {
+            // 대화를 만들어 닫혔으면 연 버튼이 아니라 새 탭의 입력창으로 간다(ChatPane이 옮긴다).
+            // 새 탭이 창보다 먼저 그려졌으면 창이 포커스를 붙잡고 있었으므로 여기서 옮긴다. 아직이면 ChatPane이 불러온 뒤 옮긴다.
+            if (created.current) {
+              created.current = false;
+              event.preventDefault();
+              window.requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-composer-input]")?.focus());
+            }
+          }}
         />
       </Dialog>
     </div>
@@ -294,7 +464,9 @@ function NewConversation({
   projects,
   onCreate,
   pending,
+  onCloseAutoFocus,
 }: {
+  onCloseAutoFocus?: (event: Event) => void;
   org: ReturnType<typeof useOrganization>["data"];
   projects: { id: string; name: string; linked: boolean }[];
   onCreate: (kind: string, id: string | null, projectId: string | null) => void;
@@ -306,7 +478,7 @@ function NewConversation({
   const linked = projects.filter((p) => p.linked);
   const [projectId, setProjectId] = useState(linked.length === 1 ? linked[0]!.id : "");
   return (
-    <DialogContent title="새 대화" description="누구에게(대상) 어디서(작업 폴더) 일을 맡길지 고르세요.">
+    <DialogContent title="새 대화" description="누구에게(대상) 어디서(작업 폴더) 일을 맡길지 고르세요." onCloseAutoFocus={onCloseAutoFocus}>
       <Field label="누구에게 — 대화 대상">
         {(fid) => (
           <Select id={fid} value={value} onChange={(e) => setValue(e.target.value)}>
@@ -372,7 +544,12 @@ function ChatPane({
   togglePanel,
   switcher,
   onOpenMatrix,
+  focusComposer = false,
+  onFocused,
 }: {
+  /** 탭을 바꿔 열렸으면 내용을 불러온 뒤 입력창으로 포커스를 옮긴다(#96). */
+  focusComposer?: boolean;
+  onFocused?: () => void;
   onOpenMatrix: () => void;
   switcher?: ReactNode;
   conversationId: string;
@@ -464,6 +641,25 @@ function ChatPane({
     [conversationId, queryClient],
   );
 
+  // 탭을 오가도 읽던 자리로 돌아온다(#96): 맨 아래에 붙어 있지 않았으면 기억한 위치로.
+  const restored = useRef(false);
+  const loaded = Boolean(conv.data);
+  useLayoutEffect(() => {
+    if (!loaded || restored.current) return;
+    restored.current = true;
+    const memo = recallScroll(conversationId);
+    const el = scrollRef.current;
+    if (memo && !memo.stick && el) {
+      stick.current = false;
+      el.scrollTop = memo.top;
+    }
+  }, [loaded, conversationId]);
+  useEffect(() => {
+    if (!loaded || !focusComposer) return;
+    window.requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-composer-input]")?.focus());
+    onFocused?.();
+  }, [loaded, focusComposer]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const el = scrollRef.current;
     if (el && stick.current) el.scrollTop = el.scrollHeight;
@@ -545,13 +741,14 @@ function ChatPane({
         : "CEO";
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-col" aria-label="채팅">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label="채팅">
       <ChatHeader conversation={c} agents={agents} panelOpen={panelOpen} togglePanel={togglePanel} switcher={switcher} onOpenMatrix={onOpenMatrix} />
       <div
         ref={scrollRef}
         onScroll={(e) => {
           const el = e.currentTarget;
           stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          rememberScroll(conversationId, { top: el.scrollTop, stick: stick.current });
         }}
         className="min-h-0 flex-1 overflow-y-auto"
         aria-live="polite"
@@ -607,6 +804,7 @@ function ChatPane({
           commands={commands.data ?? []}
           busy={busy}
           history={sentHistory(c.messages)}
+          draftKey={draftKey(c.organization_id, c.id)}
           onSend={send}
           onCommand={runCommand}
           onStop={stop}
