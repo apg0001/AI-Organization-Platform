@@ -150,6 +150,7 @@
 | GET/PATCH/DELETE | `/conversations/{id}` | 메시지 포함 상세 / 제목·대상·프로젝트·컨텍스트·보관 / 삭제(첨부 파일도 삭제) |
 | POST | `/conversations/{id}/messages` | `{content, mention_agent_ids[], mention_all, attachment_ids[]}` → 202 `{user_message, assistant_message_ids, queued_agent_ids}`. 대상 에이전트가 이 대화에서 응답 중이면 거절하지 않고 대기열에 넣는다(user 메시지 `data.queued`, `data.queue_state`: waiting·delivered·cancelled). 그 에이전트의 실행이 끝나면 대기 메시지를 순서대로 모아 같은 세션으로 이어서 전달한다. 실행 중인 턴 한가운데에 끼워 넣지는 않는다 |
 | POST | `/conversations/{id}/messages/{mid}/cancel-queued` | 아직 전달 안 된 대기 메시지 취소(대기 중이 아니면 409). `/stop`과 서버 재시작도 대기 메시지를 취소한다 |
+| POST | `/conversations/{id}/messages/{mid}/edit-queued` | 아직 전달 안 된 대기 메시지의 내용 수정(#95). 본문 `{content}`(1~50,000자, 새 메시지와 같은 규칙) → 200 갱신된 메시지(`data.edited_at` 추가). 없음·다른 대화·사용자 메시지가 아님 404, 대기 중이 아님(이미 전달·취소) 409, 빈 내용·길이 초과 422. 멘션·첨부·대기 대상은 바뀌지 않는다. 전달과 경쟁하지 않게 한 번에 확인·수정한다(전달이 먼저면 409, 수정이 먼저면 고친 내용이 전달된다). 실시간으로 `message.status`가 방송된다(본문은 이벤트에 없음 — 대화를 다시 불러와 읽는다) |
 | POST | `/conversations/{id}/messages/{mid}/regenerate` | 같은 질문으로 다시 생성 |
 | POST | `/conversations/{id}/stop` | 이 대화의 실행 중지 → `{stopped}` |
 | GET | `/commands` | 슬래시 명령 명세 |
@@ -208,7 +209,7 @@
 |---|---|---|
 | `ping` | — | 25초 유휴 시 |
 | `message.created` | conversation_id, message | 새 메시지(사용자·assistant pending·command) |
-| `message.status` | conversation_id, message_id, status | `streaming` 시작 |
+| `message.status` | conversation_id, message_id, status | `streaming` 시작, 대기 메시지 수정(#95, 본문 없음) |
 | `message.delta` | conversation_id, message_id, text | 스트리밍 텍스트 조각 |
 | `run.activity` | conversation_id, message_id, agent_id, entry | 도구 사용(id, tool, activity, target, status) |
 | `run.denied` | conversation_id, message_id, agent_id, tool, reason | 정책 거부 |
