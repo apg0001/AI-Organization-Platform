@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ai_org.models import ActivityEvent, Agent, Collaboration, Department, Organization, OrgRevision
-from ai_org.schemas import AgentPermissions
+from ai_org.schemas import AgentPermissions, stored_model, stored_permissions
 from ai_org.services.capabilities import Capability
 from ai_org.spec import OrgSpec, SpecAgent, SpecCollaboration, SpecDepartment, TemplateFile
 
@@ -91,11 +91,11 @@ def org_to_spec(db: Session, org: Organization) -> OrgSpec:
                 reports_to=a.reports_to_id,
                 is_lead=a.is_lead,
                 enabled=a.enabled,
-                permissions=AgentPermissions.model_validate(a.permissions or {}),
+                permissions=stored_permissions(a.permissions),
                 allowed_skills=a.allowed_skills or [],
                 allowed_mcp_servers=a.allowed_mcp_servers or [],
                 allowed_plugins=a.allowed_plugins or [],
-                model=a.model,
+                model=stored_model(a.model),
             )
             for a in agents
         ],

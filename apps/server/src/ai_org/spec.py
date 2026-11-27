@@ -9,11 +9,11 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from ai_org.schemas import AgentPermissions, OrgPolicy
+from ai_org.schemas import AgentPermissions, OrgPolicy, clean_model
 
 KEY = r"^[A-Za-z0-9_\-]{1,40}$"
 
@@ -45,6 +45,12 @@ class SpecAgent(BaseModel):
     allowed_mcp_servers: list[str] = Field(default_factory=list)
     allowed_plugins: list[str] = Field(default_factory=list)
     model: str | None = None
+
+    @field_validator("model", mode="before")
+    @classmethod
+    def _check_model(cls, value: Any) -> str | None:
+        # 템플릿·가져오기·설계 AI 제안·조직도 편집이 모두 이 검증을 거친다.
+        return clean_model(value)
 
 
 class SpecCollaboration(BaseModel):
