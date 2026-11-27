@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-27
+
+데스크톱 설치 파일은 여전히 서명하지 않았다.
+
+에이전트별 모델(#87): `opus`·`sonnet`·`haiku` 별칭이 실제 Claude Code에서 받아들여지는지, 기본값일 때 어떤 모델이 쓰이는지, 이어지는 세션에서 모델만 바꿔도 되는지는 실제 Claude Code로 확인하지 않았다(가짜 런타임은 모델을 무시한다).
+
+### 추가
+- 커맨드 센터: 대화 머리의 '권한' 버튼과 권한 팝오버의 '권한 표 열기'로, 조직 화면 '권한' 탭과 같은 권한 표를 대화 화면 위 창으로 연다. 현재 대화 상대 행에 '현재 대화'를 표시하고, Esc로 닫으면 포커스가 연 곳으로 돌아간다. 권한 확대 확인 창과 저장 중 잠금은 조직 화면과 같다 (#87).
+- 에이전트별 Claude 모델 선택: 권한 표의 '모델' 열, 권한 팝오버, 에이전트 편집 창에서 기본값(Claude Code 기본 모델)·opus·sonnet·haiku를 고른다. 목록에 없는 저장 값은 '사용자 지정: 값'으로 유지한다. 다음 실행부터 적용되고(실행 중인 작업은 바뀌지 않음) 프리셋은 모델을 바꾸지 않는다 (#87).
+
+### 보안
+- 에이전트 `model` 값을 형식으로 검증한다(1~100자, 영문·숫자와 `. _ : - [ ]`, `-`로 시작 불가 — 틀리면 422). 명세(템플릿·설계 AI 제안·초안 적용)에도 같은 검증을 적용하고, 저장돼 있던 값이 형식에 맞지 않으면 기본 모델로 실행·표시한다 (#87).
+- 알려진 한계: 모델 이름이 실제로 있는지는 확인하지 않는다. 설계 담당 AI가 제안에서 모델을 바꿔도 권한 확대처럼 수락을 거치지 않고 변경 목록에 '에이전트 수정'으로만 보인다 (#87).
+
 ## [0.4.0] - 2026-11-26
 
 데스크톱 설치 파일은 여전히 서명하지 않았다.
@@ -98,7 +112,8 @@
 - 보안: 셸 명령 안의 작업 폴더 밖 경로를 감지해 사용자 승인을 요구(승인 요청에 사유 표시).
 - 라이선스: Apache License 2.0 적용(LICENSE, NOTICE).
 
-[Unreleased]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.4.0...develop
+[Unreleased]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.5.0...develop
+[0.5.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.1.0...v0.2.0

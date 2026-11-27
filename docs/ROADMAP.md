@@ -30,6 +30,7 @@
 |---|---|
 | 서버: auto 모드, 허용 리스트(`allow_rules`), '항상 허용', 설계 AI 제안의 권한 확대 판정 | 구현 — CI·E2E(가짜 런타임) 통과(develop 병합 후 pytest 449, `apps/server/tests/test_allow_rules.py` 포함), 0.4.0. **실제 Claude Code의 auto 동작은 미검증** |
 | 웹: 권한 표·프리셋·권한 팝오버·조직도 배지·허용 규칙 편집·권한 확대 확인 창 | 구현 — CI·E2E(가짜 런타임) 통과(develop 병합 후 vitest 50, E2E 10/10 — 권한 E2E 3건 포함: `apps/web/e2e/flows.spec.ts`), 0.4.0. **실제 Claude Code의 auto 동작은 미검증** |
+| 커맨드 센터에서 권한 표 열기, 에이전트별 모델 선택(#87) | 구현 — CI·E2E(가짜 런타임) 통과(pytest 499, vitest 61, E2E 12/12), 0.5.0. **실제 Claude Code에서 모델 별칭·기본 모델·세션 중 모델 변경 동작은 미검증** |
 
 실제 Claude Code로 확인하지 않은 것: PreToolUse 훅이 auto 분류기보다 먼저 불리는지, 분류기가 막을 때 `can_use_tool`로 되묻는지,
 auto 모드를 지원하는 CLI 버전. 확인 전에는 Tested로 올리지 않는다([SECURITY.md](SECURITY.md) §3.5).

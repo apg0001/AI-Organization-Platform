@@ -9,8 +9,10 @@ import { AgentStatus, DeptChip, ErrorState, LoadingState, Section } from "@/comp
 import { orgAsSpec } from "@/components/org/OrgChart";
 import { Button, IconButton } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/overlay";
-import { type Agent, type Conversation, type SpecAgent, api, fieldError } from "@/lib/api";
+import { type Agent, type Conversation, type Organization, api, fieldError } from "@/lib/api";
 import { usePermissionChange } from "@/features/permissions/usePermissionChange";
+import { type AgentPatchBody, changedAgentFields } from "@/lib/agentPatch";
+import { modelLabel } from "@/lib/models";
 import { samePermissions } from "@/lib/permissions";
 import { useCapabilities, useOrganization, useTasks } from "@/lib/queries";
 import { timeAgo } from "@/lib/utils";
@@ -30,26 +32,15 @@ export function AgentDetailPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const save = useMutation({
-    mutationFn: (next: SpecAgent) =>
-      api<Agent>(`/organizations/${agent.data!.organization_id}/agents/${agentId}`, {
-        method: "PATCH",
-        body: {
-          name: next.name,
-          title: next.title,
-          role: next.role,
-          responsibilities: next.responsibilities,
-          expertise: next.expertise,
-          instructions: next.instructions,
-          department_id: next.department,
-          reports_to_id: next.reports_to,
-          enabled: next.enabled,
-          // 권한은 여기서 보내지 않는다(아래 permissions.request가 최신 값 기준으로 따로 저장한다).
-          allowed_skills: next.allowed_skills,
-          allowed_mcp_servers: next.allowed_mcp_servers,
-          allowed_plugins: next.allowed_plugins,
-        },
-      }),
-    onSuccess: () => {
+    // 사용자가 바꾼 필드만 보낸다(lib/agentPatch.ts). 권한은 여기서 보내지 않는다(permissions.request가 따로 저장한다).
+    mutationFn: (body: AgentPatchBody) =>
+      api<Agent>(`/organizations/${agent.data!.organization_id}/agents/${agentId}`, { method: "PATCH", body }),
+    onSuccess: (updated) => {
+      // 응답으로 캐시를 바로 갱신한다(다음 편집의 비교 기준이 방금 저장된 서버 값이 되게).
+      queryClient.setQueryData<Agent>(["agent", agentId], updated);
+      queryClient.setQueriesData<Organization>({ queryKey: ["organization"] }, (org) =>
+        org?.agents?.some((x) => x.id === updated.id) ? { ...org, agents: org.agents.map((x) => (x.id === updated.id ? updated : x)) } : org,
+      );
       void queryClient.invalidateQueries({ queryKey: ["agent", agentId] });
       void queryClient.invalidateQueries({ queryKey: ["organization"] });
       toast.success("저장했습니다.");
@@ -139,7 +130,7 @@ export function AgentDetailPage() {
               <dt className="text-muted">런타임</dt>
               <dd>Claude Code</dd>
               <dt className="text-muted">모델</dt>
-              <dd>{a.model ?? "Claude Code 기본값"}</dd>
+              <dd>{modelLabel(a.model)}</dd>
               <dt className="text-muted">작업 폴더</dt>
               <dd className="text-xs text-muted">대화에 연결한 프로젝트. 없으면 이 에이전트 전용 작업 폴더(~/.ai-org/workspaces)</dd>
             </dl>
@@ -161,8 +152,9 @@ export function AgentDetailPage() {
               if (!samePermissions(specAgent.permissions, next.permissions)) {
                 permissions.request([{ agent: { ...a, permissions: specAgent.permissions }, next: next.permissions }]);
               }
-              // 권한 말고 다른 항목이 바뀌었을 때만 나머지를 저장한다.
-              if (JSON.stringify({ ...next, permissions: null }) !== JSON.stringify({ ...specAgent, permissions: null })) save.mutate(next);
+              // 권한 말고 다른 항목은 바뀐 필드만 저장한다. 바뀐 것이 없으면 요청을 보내지 않는다.
+              const body = changedAgentFields(specAgent, next);
+              if (Object.keys(body).length > 0) save.mutate(body);
             }}
             permissionError={fieldError(permissions.error, "allow_rules")}
             permissionsBusy={permissions.pending}
