@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-27
+
+데스크톱 설치 파일은 여전히 서명하지 않았다.
+
 ### 추가
 - 커맨드 센터 대화 탭: 대화 머리 위 탭 줄(실행 중·승인 대기·새 응답 표시, 최대 8개), Ctrl/⌘+클릭·가운데 클릭·새 대화는 새 탭, Alt+1~9·Alt+W 단축키와 탭 줄 키보드 조작. 탭 목록은 조직별로 이 기기에, 입력 초안은 대화별로 저장한다(첨부·분할 화면은 미지원) (#96).
 - 커맨드 센터: 아직 전달되지 않은 대기 메시지를 그 자리에서 고친다('취소' 옆 '수정', Ctrl/⌘+Enter 저장·Esc 취소, '수정됨' 표시). 멘션·첨부는 그대로이고, 이미 전달됐으면 고칠 수 없다(편집 중 전달되면 편집을 닫고 내용 복사 제공). API `POST /conversations/{id}/messages/{mid}/edit-queued` (#95).
@@ -120,7 +124,8 @@
 - 보안: 셸 명령 안의 작업 폴더 밖 경로를 감지해 사용자 승인을 요구(승인 요청에 사유 표시).
 - 라이선스: Apache License 2.0 적용(LICENSE, NOTICE).
 
-[Unreleased]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.5.0...develop
+[Unreleased]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.6.0...develop
+[0.6.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/apg0001/AI-Organization-Platform/compare/v0.2.0...v0.3.0
